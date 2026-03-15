@@ -1,19 +1,15 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { WebSocketServer, WebSocket } from 'ws';
-import http from 'http';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const WebSocket = require('ws');
+const http = require('http');
 
 // ================================
 // CONFIGURAÇÃO DO SERVIDOR
 // ================================
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -56,7 +52,7 @@ app.post('/api/check-ip', (req, res) => {
 // WEBSOCKET SIGNALING (QUANTUM NET)
 // ================================
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
@@ -72,13 +68,13 @@ wss.on('connection', (ws, req) => {
 // ================================
 // SPA FALLBACK
 // ================================
-app.get('/{*splat}', (req, res) => {
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist/browser/index.html'));
 });
 
 // ================================
 // INICIALIZAÇÃO
 // ================================
-server.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Backend rodando em http://0.0.0.0:${port}`);
+server.listen(port, () => {
+  console.log(`🚀 Backend rodando em http://localhost:${port}`);
 });

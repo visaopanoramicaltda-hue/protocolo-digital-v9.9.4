@@ -51,9 +51,10 @@ export class ExclusiveScannerService {
   // Yield de Resfriamento para Releitura (Motor Local é pesado)
   private readonly RELEITURA_THERMAL_YIELD_MS = 50; 
   
-  // ROTA LOCAL (OFFLINE FIRST)
-  private readonly WORKER_LOCAL = '/assets/tesseract/worker.min.js';
-  private readonly CORE_LOCAL = '/assets/tesseract/tesseract-core.wasm.js';
+  // ROTA LOCAL (OFFLINE FIRST) - Removida pois os assets não estão disponíveis
+  // Fallback para CDN
+  private readonly WORKER_LOCAL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
+  private readonly CORE_LOCAL = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js';
   
   // CDN FALLBACK
   private readonly WORKER_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';

@@ -22,9 +22,8 @@ RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server.js .
 
-# Porta configurável via variável de ambiente (Cloud Run)
-ENV PORT=8080
-EXPOSE 8080
+# Expõe a porta 3000
+EXPOSE 3000
 
 # Inicia o servidor
 CMD ["node", "server.js"]
