@@ -30,7 +30,7 @@ try {
     `<script>window.__RUNTIME_CONFIG__=${runtimeConfig};</script>\n</head>`
   );
 } catch (e) {
-  // index.html not found (e.g., during development)
+  console.warn('Could not inject runtime config:', e.message);
 }
 
 // Servir arquivos estáticos do Angular
