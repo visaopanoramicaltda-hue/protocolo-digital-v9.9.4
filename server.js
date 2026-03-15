@@ -15,7 +15,9 @@ app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos do Angular
-app.use(express.static(path.join(import.meta.dirname, 'dist/browser')));
+app.use(express.static(path.join(import.meta.dirname, 'dist/browser'), {
+  index: false
+}));
 
 // ================================
 // ROTA RAIZ (TESTE)
@@ -62,6 +64,15 @@ wss.on('connection', (ws, req) => {
         client.send(message);
       }
     });
+  });
+});
+
+// ================================
+// RUNTIME CONFIG API
+// ================================
+app.get('/api/config', (req, res) => {
+  res.json({
+    geminiApiKey: process.env.GEMINI_API_KEY || ''
   });
 });
 

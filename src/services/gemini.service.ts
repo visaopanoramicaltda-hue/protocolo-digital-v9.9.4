@@ -1,10 +1,13 @@
 
 import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { DbService, Morador, Encomenda } from '../services/db.service';
 import { UiService } from './ui.service';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { QuantumNetService } from './core/quantum-net.service';
-import { DeepSeekService } from './deep-seek.service'; 
+import { DeepSeekService } from './deep-seek.service';
+import { environment } from '../environments/environment';
 
 declare var jsQR: any;
 
@@ -65,11 +68,13 @@ export interface SimbioseMemory {
 export class GeminiService {
   private db = inject(DbService);
   private ui = inject(UiService);
+  private http = inject(HttpClient);
   private quantumNet = inject(QuantumNetService); 
   private deepSeek = inject(DeepSeekService); 
   
   private genAI: GoogleGenAI;
   private apiKey: string = '';
+  private readonly initPromise: Promise<void>;
   
   public evolutionStatus = signal<'IDLE' | 'ANALYZING' | 'EVOLVING' | 'COMPLETE' | 'OPTIMIZING'>('IDLE');
   public lastEvolution = signal<string>('');
@@ -84,23 +89,8 @@ export class GeminiService {
   private memory: SimbioseMemory = { carrierFrequency: {}, residentFrequency: {}, residentAliases: {}, lastTraining: 0, neuralVersion: 1 };
 
   constructor() {
-    let apiKey = '';
-    if (typeof process !== 'undefined' && process.env) {
-        apiKey = process.env['API_KEY'] || '';
-    }
-    this.apiKey = apiKey;
-
-    try {
-      this.genAI = new GoogleGenAI({ apiKey: apiKey });
-      if (this.apiKey) {
-        this.geminiApiStatus.set('CONFIGURED');
-      } else {
-        this.geminiApiStatus.set('NOT_CONFIGURED');
-      }
-    } catch (e) {
-      this.genAI = { models: {} } as any;
-      this.geminiApiStatus.set('NOT_CONFIGURED');
-    }
+    this.genAI = { models: {} } as any;
+    this.initPromise = this.initializeConfig();
     
     this.loadOcrCache();
     this.loadMemory();
@@ -117,6 +107,31 @@ export class GeminiService {
             this.fundirMemoria(memoriaExterna);
         }
     });
+  }
+
+  private async initializeConfig() {
+    try {
+      // Busca a chave que o servidor disponibilizou
+      const config = await firstValueFrom(this.http.get<{ geminiApiKey: string }>('/api/config'));
+      if (config.geminiApiKey) {
+        this.apiKey = config.geminiApiKey;
+        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
+        this.geminiApiStatus.set('CONFIGURED');
+        console.log('🟠 Simbiose: Gemini API configurada com sucesso.');
+      }
+    } catch (err) {
+      // Fallback para configuração local (development)
+      const fallbackKey = environment.geminiApiKey || '';
+      if (fallbackKey) {
+        this.apiKey = fallbackKey;
+        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
+        this.geminiApiStatus.set('CONFIGURED');
+        console.log('🟠 Simbiose: Gemini API configurada via environment local.');
+      } else {
+        this.geminiApiStatus.set('NOT_CONFIGURED');
+        console.error('🔴 Simbiose: Erro ao carregar chave da API', err);
+      }
+    }
   }
   
   public getMemory(): Readonly<SimbioseMemory> {
@@ -201,8 +216,9 @@ export class GeminiService {
       carriers: string[], 
       localHints: { qrCode?: string, ocrText?: string, qualityData?: ImageQualityData } = {}
   ): Promise<OcrExtractionResult> {
-    
-    // console.log('[SIMBIOSE] Iniciando Protocolo de Leitura Híbrida (Turbo Mode)...');
+
+    // Aguarda a configuração estar pronta antes de processar
+    await this.initPromise;
 
     if (!imageBase64 || imageBase64.length < 100) return this.emptyResult();
     
