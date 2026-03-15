@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
+import fs from 'fs';
 
 // ================================
 // CONFIGURAÇÃO DO SERVIDOR
@@ -14,23 +15,34 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// ================================
+// RUNTIME CONFIG INJECTION
+// ================================
+const indexPath = path.join(import.meta.dirname, 'dist/browser/index.html');
+let indexHtml = '';
+try {
+  const raw = fs.readFileSync(indexPath, 'utf-8');
+  const runtimeConfig = JSON.stringify({
+    geminiApiKey: process.env.GEMINI_API_KEY || ''
+  });
+  indexHtml = raw.replace(
+    '</head>',
+    `<script>window.__RUNTIME_CONFIG__=${runtimeConfig};</script>\n</head>`
+  );
+} catch (e) {
+  // index.html not found (e.g., during development)
+}
+
 // Servir arquivos estáticos do Angular
-app.use(express.static(path.join(import.meta.dirname, 'dist/browser')));
+app.use(express.static(path.join(import.meta.dirname, 'dist/browser'), {
+  index: false
+}));
 
 // ================================
 // ROTA RAIZ (TESTE)
 // ================================
 app.get('/api/health', (req, res) => {
   res.send({ status: 'online', service: 'Simbiose Backend (Signaling Only)' });
-});
-
-// ================================
-// RUNTIME CONFIG (API KEYS)
-// ================================
-app.get('/api/config', (req, res) => {
-  res.send({
-    geminiApiKey: process.env.GEMINI_API_KEY || ''
-  });
 });
 
 // ================================
@@ -78,7 +90,11 @@ wss.on('connection', (ws, req) => {
 // SPA FALLBACK
 // ================================
 app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(import.meta.dirname, 'dist/browser/index.html'));
+  if (indexHtml) {
+    res.type('html').send(indexHtml);
+  } else {
+    res.sendFile(path.join(import.meta.dirname, 'dist/browser/index.html'));
+  }
 });
 
 // ================================

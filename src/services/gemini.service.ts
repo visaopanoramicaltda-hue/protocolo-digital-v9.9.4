@@ -83,11 +83,24 @@ export class GeminiService {
   
   private ocrCache: Map<string, OcrCacheEntry> = new Map();
   private memory: SimbioseMemory = { carrierFrequency: {}, residentFrequency: {}, residentAliases: {}, lastTraining: 0, neuralVersion: 1 };
-  private initPromise: Promise<void>;
 
   constructor() {
-    this.genAI = { models: {} } as any;
-    this.initPromise = this.initializeApiKey();
+    // Read API key from runtime config (injected by server) or Angular environment
+    const runtimeConfig = (window as any).__RUNTIME_CONFIG__;
+    const apiKey = runtimeConfig?.geminiApiKey || environment.geminiApiKey || '';
+    this.apiKey = apiKey;
+
+    try {
+      this.genAI = new GoogleGenAI({ apiKey });
+      if (this.apiKey) {
+        this.geminiApiStatus.set('CONFIGURED');
+      } else {
+        this.geminiApiStatus.set('NOT_CONFIGURED');
+      }
+    } catch (e) {
+      this.genAI = { models: {} } as any;
+      this.geminiApiStatus.set('NOT_CONFIGURED');
+    }
     
     this.loadOcrCache();
     this.loadMemory();
@@ -104,40 +117,6 @@ export class GeminiService {
             this.fundirMemoria(memoriaExterna);
         }
     });
-  }
-
-  private async initializeApiKey(): Promise<void> {
-    let apiKey = '';
-
-    // 1. Try fetching API key from server (production runtime config)
-    try {
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const config = await response.json();
-        apiKey = config.geminiApiKey || '';
-      }
-    } catch (e) {
-      // Server not available (e.g., ng serve in dev mode)
-    }
-
-    // 2. Fallback to Angular environment config (development)
-    if (!apiKey) {
-      apiKey = environment.geminiApiKey || '';
-    }
-
-    this.apiKey = apiKey;
-
-    try {
-      this.genAI = new GoogleGenAI({ apiKey });
-      if (this.apiKey) {
-        this.geminiApiStatus.set('CONFIGURED');
-      } else {
-        this.geminiApiStatus.set('NOT_CONFIGURED');
-      }
-    } catch (e) {
-      this.genAI = { models: {} } as any;
-      this.geminiApiStatus.set('NOT_CONFIGURED');
-    }
   }
   
   public getMemory(): Readonly<SimbioseMemory> {
@@ -222,9 +201,6 @@ export class GeminiService {
       carriers: string[], 
       localHints: { qrCode?: string, ocrText?: string, qualityData?: ImageQualityData } = {}
   ): Promise<OcrExtractionResult> {
-    
-    // Wait for API key initialization to complete
-    await this.initPromise;
 
     if (!imageBase64 || imageBase64.length < 100) return this.emptyResult();
     
