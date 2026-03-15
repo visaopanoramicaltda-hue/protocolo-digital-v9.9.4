@@ -1,9 +1,13 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const WebSocket = require('ws');
-const http = require('http');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { WebSocketServer, WebSocket } from 'ws';
+import http from 'http';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ================================
 // CONFIGURAÇÃO DO SERVIDOR
@@ -52,7 +56,7 @@ app.post('/api/check-ip', (req, res) => {
 // WEBSOCKET SIGNALING (QUANTUM NET)
 // ================================
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
@@ -68,7 +72,7 @@ wss.on('connection', (ws, req) => {
 // ================================
 // SPA FALLBACK
 // ================================
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist/browser/index.html'));
 });
 
