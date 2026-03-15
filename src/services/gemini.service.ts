@@ -74,6 +74,7 @@ export class GeminiService {
   
   private genAI: GoogleGenAI;
   private apiKey: string = '';
+  private initPromise: Promise<void>;
   
   public evolutionStatus = signal<'IDLE' | 'ANALYZING' | 'EVOLVING' | 'COMPLETE' | 'OPTIMIZING'>('IDLE');
   public lastEvolution = signal<string>('');
@@ -89,7 +90,7 @@ export class GeminiService {
 
   constructor() {
     this.genAI = { models: {} } as any;
-    this.initializeConfig();
+    this.initPromise = this.initializeConfig();
     
     this.loadOcrCache();
     this.loadMemory();
@@ -215,6 +216,9 @@ export class GeminiService {
       carriers: string[], 
       localHints: { qrCode?: string, ocrText?: string, qualityData?: ImageQualityData } = {}
   ): Promise<OcrExtractionResult> {
+
+    // Aguarda a configuração estar pronta antes de processar
+    await this.initPromise;
 
     if (!imageBase64 || imageBase64.length < 100) return this.emptyResult();
     
