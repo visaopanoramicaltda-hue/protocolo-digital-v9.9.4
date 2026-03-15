@@ -9,7 +9,7 @@ const http = require('http');
 // CONFIGURAÇÃO DO SERVIDOR
 // ================================
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
@@ -75,6 +75,6 @@ app.get('*', (req, res) => {
 // ================================
 // INICIALIZAÇÃO
 // ================================
-server.listen(port, () => {
-  console.log(`🚀 Backend rodando em http://localhost:${port}`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 Backend rodando em http://0.0.0.0:${port}`);
 });
