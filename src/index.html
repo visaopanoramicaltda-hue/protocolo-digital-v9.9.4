@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <!-- Viewport otimizada para Fullscreen e Notch/Ilha Dinâmica -->
+  <!-- 'user-scalable=no' evita zoom acidental e ajuda a manter a sensação de app -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- THEME COLORS (PIANO BLACK) - Conformidade TWA -->
+  <meta name="theme-color" content="#050505">
+  <meta name="background-color" content="#050505">
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Simbiose">
+  <meta name="apple-mobile-web-app-title" content="Simbiose">
+  
+  <!-- TWA/PWA Icons (SVG LOCAL) -->
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <title>Simbiose V9.9.4</title>
+  
+  <!-- PRELOAD CRITICAL ASSETS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="https://cdn.tailwindcss.com?v=3.4.17" as="script">
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" as="script">
+  
+  <!-- MASTER ENGINE LIBRARIES -->
+  <script src="https://cdn.tailwindcss.com?v=3.4.17"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            piano: { 950: '#000000', 900: '#050505', 800: '#141414', 700: '#1f1f1f' }
+          },
+          animation: {
+            'fadeIn': 'fadeIn 0.3s ease-out'
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } }
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <style>
+    /* GLOBAL RESPONSIVE RESET */
+    * {
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+        touch-action: manipulation; /* Prevents double-tap zoom */
+    }
+
+    html, body {
+        width: 100%;
+        height: 100dvh; /* Força altura do viewport dinâmica */
+        overflow: hidden; /* App-like feel, impede scroll no body */
+        overscroll-behavior-y: none; /* Impede pull-to-refresh e o bounce que mostra barra de endereço */
+        -webkit-text-size-adjust: 100%;
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        background-color: #050505; /* PIANO BLACK */
+        color: #111827;
+    }
+
+    app-root {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    .dark body { background-color: #050505; color: #f9fafb; }
+
+    /* CUSTOM SCROLLBARS (Mobile Friendly) */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background-color: rgba(217, 119, 6, 0.5); border-radius: 10px; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* IOS INPUT ZOOM FIX */
+    @media screen and (max-width: 768px) {
+        input, select, textarea {
+            font-size: 16px !important; /* Prevents automatic zoom on focus */
+        }
+        /* Improve scrolling on mobile */
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+
+    /* SAFE AREA INSETS (Notch/Dynamic Island Support) */
+    .safe-area-pt { padding-top: max(env(safe-area-inset-top), 20px) !important; }
+    .safe-area-pb { padding-bottom: max(env(safe-area-inset-bottom), 20px) !important; }
+    .safe-area-pl { padding-left: max(env(safe-area-inset-left), 10px) !important; }
+    .safe-area-pr { padding-right: max(env(safe-area-inset-right), 10px) !important; }
+
+    /* --- PROTOCOLO CAMUFLAGEM (ANTI-AUTOFILL GOOGLE) --- */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active {
+        transition: background-color 9999999s ease-in-out 0s, color 9999999s ease-in-out 0s;
+        -webkit-text-fill-color: inherit !important;
+        background-clip: content-box !important;
+    }
+  </style>
+
+<!-- ANGULAR 21+ ARCHITECTURE UPDATE (BLEEDING EDGE) -->
+<script type="importmap">
+{
+  "imports": {
+    "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+    "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+    "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+    "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+    "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+    "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+    "@angular/compiler": "https://next.esm.sh/@angular/compiler@^21.0.0?external=rxjs",
+    "@angular/platform-browser": "https://next.esm.sh/@angular/platform-browser@^21.0.0?external=rxjs",
+    "@angular/core": "https://next.esm.sh/@angular/core@^21.0.0?external=rxjs",
+    "@angular/core/rxjs-interop": "https://next.esm.sh/@angular/core@^21.0.0/rxjs-interop?external=rxjs",
+    "@google/genai": "https://next.esm.sh/@google/genai@^1.34.0?external=rxjs",
+    "@angular/common": "https://next.esm.sh/@angular/common@^21.0.0?external=rxjs",
+    "@angular/forms": "https://next.esm.sh/@angular/forms@^21.0.0?external=rxjs",
+    "@angular/router": "https://next.esm.sh/@angular/router@^21.0.0?external=rxjs",
+    "elliptic": "https://esm.sh/elliptic@^6.5.5",
+    "crypto-js": "https://esm.sh/crypto-js@^4.2.0",
+    "jspdf": "https://esm.sh/jspdf@2.5.2",
+    "@angular/common/http": "https://esm.sh/@angular/common@^21.0.0/http?external=rxjs",
+    "@angular/cdk/clipboard": "https://esm.sh/@angular/cdk@^21.0.0/clipboard?external=rxjs",
+    "@angular/service-worker": "https://esm.sh/@angular/service-worker@^21.0.0?external=rxjs",
+    "@ngrx/store": "https://esm.sh/@ngrx/store@^19.0.0?external=rxjs,@angular/core",
+    "@ngrx/effects": "https://esm.sh/@ngrx/effects@^19.0.0?external=rxjs,@angular/core,@ngrx/store",
+    "@ngrx/store-devtools": "https://esm.sh/@ngrx/store-devtools@^19.0.0?external=rxjs,@angular/core,@ngrx/store",
+    "@angular/core/testing": "https://esm.sh/@angular/core@^21.1.3/testing?external=rxjs"
+  }
+}
+</script>
+</head>
+<body class="bg-[#050505] dark:bg-piano-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 h-full overflow-hidden flex flex-col">
+  <app-root></app-root>
+  <!-- DEFERRED SCRIPTS -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js' defer></script>
+</body>
+</html>

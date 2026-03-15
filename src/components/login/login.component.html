@@ -1,0 +1,229 @@
+
+<!-- AGENDA K4 REALISM (Protocolo Inteligente {{ ui.APP_VERSION }}) - RESPONSIVE REAL SCALE -->
+<div class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black overflow-hidden font-sans transition-all duration-700 ease-in-out h-full safe-area-pt safe-area-pb safe-area-pl safe-area-pr"
+     [class.opacity-0]="loginSuccess()">
+  
+  <!-- Desk Environment (Blackout Piano Black Liso) -->
+  <div class="absolute inset-0 bg-gradient-to-b from-[#1a1a1a] via-black to-[#050505] z-0 pointer-events-none"></div>
+  
+  <!-- "Vidro 5%" Overlay (Glassy Shine) -->
+  <div class="absolute inset-0 bg-white/5 backdrop-blur-[1px] z-0 pointer-events-none"></div>
+  
+  <!-- MAIN CONTAINER / BOOK CLICK ZONE -->
+  <div class="relative z-10 w-[95%] max-w-[380px] group transition-transform duration-500"
+       [class.cursor-pointer]="!isBookOpen()"
+       (click)="!isBookOpen() ? openBook() : null">
+    
+    <!-- THE PEN (Decoration) -->
+    <div class="hidden md:flex absolute -right-10 top-20 bottom-20 w-6 rounded-full bg-gradient-to-r from-gray-800 via-gray-900 to-gray-700 shadow-[5px_5px_15px_rgba(0,0,0,0.5)] z-0 flex-col items-center justify-between py-4 transform rotate-1 border-r border-gray-700 transition-all duration-1000"
+         [class.translate-x-0]="isBookOpen() || showActivation()"
+         [class.translate-x-[-15px]]="!isBookOpen() && !showActivation()"> 
+        <div class="w-full h-12 bg-gradient-to-r from-gray-700 via-gray-900 to-gray-800 rounded-t-full border-b-2 border-[#d4af37] relative">
+            <div class="absolute right-0 top-3 w-1 h-8 bg-[#d4af37] rounded-l-sm shadow-sm"></div>
+        </div>
+        <div class="absolute inset-y-0 left-1.5 w-0.5 bg-white/20 blur-[0.5px]"></div>
+    </div>
+
+    <!-- ULTRA PIANO BLACK CASE (Outer Shell) -->
+    <div class="relative bg-black rounded-[28px] p-2 md:p-3 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.1)] border border-[#222] transition-transform duration-700"
+         [class.scale-95]="!isBookOpen() && !showActivation()"
+         [class.scale-100]="isBookOpen() || showActivation()">
+      
+      <!-- Glossy Reflection -->
+      <div class="absolute top-0 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent blur-sm"></div>
+
+      <!-- LEATHER AGENDA (The Book - BRIGHTER) -->
+      <div class="relative w-full bg-[#1a0b06] rounded-[24px] border border-[#3e2318] overflow-hidden flex flex-col h-[82vh] md:h-[720px] transition-all duration-700 shadow-[inset_0_0_60px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.15)]">
+        
+        <!-- Base Gradient (Lighter Brown) -->
+        <div class="absolute inset-0 bg-gradient-to-br from-[#6b4235] via-[#3e2318] to-[#1a0b06] opacity-100"></div>
+
+        <!-- Leather Grain Texture Overlay -->
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-25 mix-blend-overlay pointer-events-none filter contrast-125"></div>
+        
+        <!-- Realistic Stitching -->
+        <div class="absolute inset-2 md:inset-3 border border-dashed border-[#8a6a5c]/50 rounded-[20px] pointer-events-none box-border shadow-[0_1px_1px_rgba(0,0,0,0.3)]"></div>
+
+        <!-- CONTENT AREA -->
+        <div class="relative z-10 px-4 py-6 md:px-6 md:py-8 flex flex-col h-full w-full justify-center">
+            
+          @if (showActivation()) {
+            <!-- NEW ACTIVATION VIEW -->
+            <div class="flex flex-col items-center justify-center transition-all duration-700 p-6 animate-[fadeIn_0.5s_ease-out]">
+                <h2 class="font-serif font-black uppercase text-2xl text-center text-transparent bg-clip-text bg-gradient-to-b from-[#f2e6bf] via-[#d4af37] to-[#aa8c2c]">
+                    Ativação da Licença
+                </h2>
+                <p class="text-[#a89b93] text-xs mt-2 mb-8 text-center">Insira o token da sua licença Simbiose para continuar.</p>
+                
+                <input [(ngModel)]="licenseTokenInput" 
+                       [attr.name]="'license_token_' + randomId" 
+                       [readonly]="true"
+                       (focus)="removeReadonly($event)"
+                       autocomplete="new-password"
+                       autocorrect="off"
+                       autocapitalize="off"
+                       spellcheck="false"
+                       type="text" placeholder="SEU-TOKEN-AQUI" class="w-full max-w-xs bg-black/50 border border-white/20 rounded-lg p-3 text-center text-white font-mono uppercase tracking-widest outline-none focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/50 transition-all">
+                
+                @if (activationError()) {
+                    <div class="mt-3 bg-red-950/80 text-red-200 text-center text-[10px] font-bold p-2 rounded border border-red-800 w-full max-w-xs">{{ activationError() }}</div>
+                }
+
+                <button (click)="activate()" [disabled]="isActivating() || !licenseTokenInput()" class="mt-6 w-full max-w-xs py-3 font-black uppercase tracking-[0.2em] rounded-xl text-sm bg-[#d4af37] text-black shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center">
+                    @if (isActivating()) {
+                        <div class="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                    } @else {
+                        <span>Ativar</span>
+                    }
+                </button>
+            </div>
+          } @else {
+            <!-- STATE 1: CLOSED BOOK (COVER) -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center transition-all duration-700 transform"
+                 [class.opacity-100]="!isBookOpen()"
+                 [class.scale-100]="!isBookOpen()"
+                 [class.opacity-0]="isBookOpen()"
+                 [class.scale-110]="isBookOpen()"
+                 [class.pointer-events-none]="isBookOpen()">
+                
+                <!-- GOLD FOIL LOGO -->
+                <div class="text-center mb-8">
+                    <h1 class="font-serif font-black uppercase leading-none text-center">
+                        <span class="block mb-2 tracking-[0.2em] text-xl md:text-2xl text-transparent bg-clip-text bg-gradient-to-b from-[#f2e6bf] via-[#d4af37] to-[#aa8c2c] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                            Protocolo
+                        </span>
+                        <span class="block text-3xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-b from-[#f2e6bf] via-[#d4af37] to-[#aa8c2c] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                            Inteligente
+                        </span>
+                    </h1>
+                    <div class="w-16 h-1 bg-[#d4af37] mx-auto mt-4 rounded-full shadow-lg opacity-90"></div>
+                </div>
+
+                <!-- TAP INSTRUCTION -->
+                <div class="mt-12 animate-pulse flex flex-col items-center gap-2">
+                    <div class="w-12 h-12 rounded-full border-2 border-[#d4af37]/40 flex items-center justify-center bg-[#d4af37]/5">
+                        <svg class="w-6 h-6 text-[#d4af37]" fill="currentColor" viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.02-.24-.02-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.43 1.06.43h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></svg>
+                    </div>
+                    <span class="text-[#d4af37] text-[10px] font-bold uppercase tracking-[0.3em] drop-shadow-sm">Toque para Abrir</span>
+                </div>
+            </div>
+
+            <!-- STATE 2: OPEN BOOK (INTERIOR) -->
+            <div class="flex flex-col h-full justify-between transition-all duration-700 transform"
+                 [class.opacity-0]="!isBookOpen()"
+                 [class.translate-y-4]="!isBookOpen()"
+                 [class.opacity-100]="isBookOpen()"
+                 [class.translate-y-0]="isBookOpen()"
+                 [class.pointer-events-none]="!isBookOpen()">
+                
+                <!-- HEADER (Small Brand) -->
+                <div class="text-center pt-4">
+                    <span class="text-[#a89b93] text-[9px] uppercase font-bold tracking-widest">Simbiose OS {{ ui.APP_VERSION }}</span>
+                </div>
+
+                <!-- MAIN INTERACTION AREA -->
+                <div class="flex-1 flex flex-col justify-center items-center gap-6">
+                    <div class="w-full max-w-[280px] animate-[fadeIn_0.5s_ease-out]">
+                        <!-- DISPLAY -->
+                        <div class="bg-[#111]/80 border border-white/20 rounded-lg p-4 mb-4 shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)] relative overflow-hidden backdrop-blur-sm">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[8px] text-[#888] font-mono uppercase tracking-widest">
+                                    {{ loginSuccess() ? 'ACCESS GRANTED' : 'Enter PIN' }}
+                                </span>
+                                <div class="w-1.5 h-1.5 rounded-full animate-pulse transition-colors duration-300"
+                                     [class.bg-[#ea580c]]="!loginSuccess()"
+                                     [class.bg-green-500]="loginSuccess()"></div>
+                            </div>
+                            <div class="flex justify-center items-center gap-3 h-6">
+                                @for (dot of [0, 1, 2, 3, 4, 5]; track dot) {
+                                    <div class="w-2.5 h-2.5 rounded-full transition-all duration-300"
+                                         [class.bg-[#ea580c]]="pin().length > dot && !loginSuccess()"
+                                         [class.bg-green-500]="loginSuccess()"
+                                         [class.bg-[#444]]="pin().length <= dot"
+                                         [class.shadow-[0_0_8px_#ea580c]]="pin().length > dot && !loginSuccess()"
+                                         [class.shadow-[0_0_15px_#22c55e]]="loginSuccess()">
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- KEYPAD -->
+                        <div class="grid grid-cols-3 gap-2 mb-4" [class.opacity-50]="loginSuccess()">
+                            @for (num of [1, 2, 3, 4, 5, 6, 7, 8, 9]; track num) {
+                                <button (click)="append(num)" class="h-12 rounded-md bg-white/5 backdrop-blur-md border border-white/10 shadow-md active:scale-95 text-gray-200 font-bold text-xl hover:bg-white/10 hover:text-[#ea580c] transition-all">{{ num }}</button>
+                            }
+                            <!-- CLR Button: Vermelho Sangue -->
+                            <button (click)="clear()" class="h-12 rounded-md bg-white/5 border border-white/10 active:scale-95 text-red-700 font-bold text-[9px] hover:text-red-600">CLR</button>
+                            <button (click)="append(0)" class="h-12 rounded-md bg-white/5 border border-white/10 active:scale-95 text-gray-200 font-bold text-xl hover:text-[#ea580c]">0</button>
+                            <button (click)="backspace()" class="h-12 rounded-md bg-white/5 border border-white/10 active:scale-95 text-[#ea580c]/70 hover:text-[#ea580c] flex items-center justify-center">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19"/></svg>
+                            </button>
+                        </div>
+
+                        <!-- ACESSAR BUTTON -->
+                        <button (click)="attemptLogin()" class="w-full h-12 bg-[#E86C26] text-black font-black uppercase tracking-[0.2em] rounded-md shadow-[0_0_15px_rgba(232,108,38,0.4)] active:scale-95 transition-all hover:bg-[#ff8a47] disabled:opacity-50 disabled:cursor-not-allowed" [disabled]="pin().length < 6 || loginSuccess()">
+                            {{ loginSuccess() ? 'Carregando...' : 'Acessar' }}
+                        </button>
+                        
+                        <!-- FINGERPRINT LOGIN BUTTON -->
+                        <button (click)="loginWithFingerprint()" class="mt-4 w-16 h-16 rounded-full bg-gradient-to-br from-[#1a1a1a] to-black border border-white/5 flex items-center justify-center shadow-[0_4px_15px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] hover:from-black hover:to-[#0a0a0a] transition-all mx-auto group active:scale-95">
+                            <svg class="w-10 h-10 text-[#ea580c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 2px rgba(234,88,12,0.8)) drop-shadow(0 0 5px rgba(234,88,12,0.6));">
+                                <path d="M12 2a10 10 0 0 0-10 10c0 5.52 4.48 10 10 10s10-4.48 10-10A10 10 0 0 0 12 2z"/>
+                                <path d="M12 6a6 6 0 0 0-6 6c0 3.31 2.69 6 6 6s6-2.69 6-6a6 6 0 0 0-6-6z"/>
+                                <path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2s2-.9 2-2a2 2 0 0 0-2-2z"/>
+                                <path d="M8 10c0 2.21 1.79 4 4 4s4-1.79 4-4"/>
+                                <path d="M6 14c0 3.31 2.69 6 6 6s6-2.69 6-6"/>
+                            </svg>
+                        </button>
+                        
+                        <!-- Default Admin Hint (ONLY SHOWN IF NO USERS IN DB) -->
+                        @if (showDefaultHint()) {
+                            <div class="mt-4 text-center animate-pulse">
+                                <p class="text-[9px] text-[#555] font-mono uppercase tracking-widest">
+                                    Admin Default: <span class="text-[#E86C26] font-bold tracking-wider">000000</span>
+                                </p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS (TERMS & RESET) -->
+
+<!-- Terms Modal -->
+@if (showTermsForUser()) {
+    <div class="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-[fadeIn_0.3s] h-full">
+        <div class="bg-[#EAE0D5] border-4 border-[#E86C26] w-full max-w-lg h-[80dvh] flex flex-col relative shadow-2xl">
+            <div class="bg-[#2a2320] p-4 shrink-0">
+                <h3 class="text-[#EAE0D5] font-black uppercase tracking-widest text-sm">Termos de Uso & LGPD</h3>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 bg-[#FDFBF7] text-[#2a2320] text-sm leading-relaxed font-serif">
+                <p class="font-bold mb-2">TERMOS DE USO DO SISTEMA SIMBIOSE</p>
+                <p class="mb-4">Ao utilizar este sistema, você concorda com os seguintes termos:</p>
+                
+                <ol class="list-decimal pl-5 space-y-3 mb-4">
+                    <li><strong>Privacidade:</strong> O sistema opera em modo "Local-First". Os dados são armazenados no dispositivo. O usuário é responsável por realizar backups seguros.</li>
+                    <li><strong>Responsabilidade:</strong> A senha de acesso é pessoal e intransferível. Todas as ações são registradas em log de auditoria.</li>
+                    <li><strong>Uso de IA:</strong> Imagens de etiquetas são processadas por IA para extração de dados. Nenhuma imagem é armazenada permanentemente nos servidores de processamento.</li>
+                    @if (isAdminTerms()) {
+                        <li><strong>Gestão (Admin):</strong> Como administrador, você é o controlador dos dados perante a LGPD e responsável por atender solicitações dos titulares (moradores).</li>
+                    }
+                </ol>
+                
+                <p class="text-xs text-[#5c4d46] mt-4">Versão: {{ ui.APP_VERSION }}</p>
+            </div>
+
+            <div class="p-4 bg-[#EAE0D5] border-t-2 border-[#2a2320] shrink-0 flex gap-3">
+                <button (click)="cancelTerms()" class="flex-1 py-3 border-2 border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs">Recusar</button>
+                <button (click)="acceptTermsAndLogin()" class="flex-1 py-3 bg-[#E86C26] text-white font-black uppercase tracking-widest shadow-md">Aceitar e Entrar</button>
+            </div>
+        </div>
+    </div>
+}

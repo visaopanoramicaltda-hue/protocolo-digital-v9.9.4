@@ -1,0 +1,615 @@
+<div class="flex flex-col h-screen w-full bg-[#FDFBF7] text-[#2a2320] font-serif relative animate-fadeIn text-90percent overflow-hidden">
+  
+  <!-- Base Texture: Cream Paper + Wood Grain Hint -->
+  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-80 pointer-events-none z-0 mix-blend-multiply"></div>
+  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-5 pointer-events-none z-0"></div>
+
+  <!-- HEADER (LEATHER STRIP STYLE) -->
+  <div class="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b-4 border-[#2a2320] bg-[#EAE0D5] shadow-md">
+    <button (click)="goBack()" class="px-4 py-2 text-[#2a2320] hover:text-[#E86C26] transition-colors font-bold uppercase text-sm tracking-widest flex items-center gap-2 border border-transparent hover:border-[#2a2320] rounded-md">
+      <span class="text-2xl leading-none -mt-1">←</span>
+    </button>
+    
+    <h1 class="text-sm font-black uppercase tracking-[0.1em] text-center flex-1 py-1 mx-2 text-[#2a2320]">
+      {{ isEditMode() || isPublicView() ? 'REGISTRO #00' : (isCorrespondenceMode() ? 'CORRESPONDÊNCIA' : 'ENCOMENDA') }}
+    </h1>
+    
+    <!-- STATS (PAPER BADGES) -->
+    <div class="flex flex-col items-end gap-1 min-w-[80px]">
+        @if (ocrConfidences().overall > 0) {
+            <div class="flex items-center gap-1 bg-white border border-[#2a2320] text-[#2a2320] px-2 py-1 shadow-sm text-10px font-bold uppercase tracking-wider rounded-md">
+                <span>IA</span>
+                <span [class.text-green-600]="ocrConfidences().overall > 0.8"
+                      [class.text-yellow-600]="ocrConfidences().overall <= 0.8 && ocrConfidences().overall > 0.5"
+                      [class.text-red-600]="ocrConfidences().overall <= 0.5">
+                    {{ ocrConfidences().overall | percent:'1.0-0' }}
+                </span>
+            </div>
+        }
+        <div class="flex items-center gap-1 border border-[#d1c4b5] bg-[#F2EBE5] px-2 py-1 text-10px font-bold uppercase tracking-wider text-[#5c4d46] rounded-md" title="Total de etiquetas lidas">
+            <span>#</span>
+            <span>{{ totalScannedPackages() }}</span>
+        </div>
+    </div>
+  </div>
+
+  <!-- FORM CONTENT (INK ON PAPER) -->
+  <div #shareableCard class="relative z-10 flex-grow p-4 flex flex-col items-center justify-start gap-4 overflow-y-auto">
+
+    <!-- PHOTO (POLAROID STYLE) -->
+    <div class="w-full flex flex-col items-center gap-1 shrink-0">
+        @if (packageData().fotoBase64) {
+            <div (click)="openImage(packageData().fotoBase64!)" 
+                 class="bg-white p-1 pb-4 shadow-[0_2px_8px_rgba(0,0,0,0.2)] border border-[#d1c4b5] max-w-[120px] w-full relative group rotate-1 transition-transform hover:rotate-0 hover:scale-105 cursor-zoom-in rounded-sm"
+                 [class.border-red-600]="isPrivacyViolation()"
+                 [class.border-4]="isPrivacyViolation()">
+                
+                <div class="relative w-full h-16 overflow-hidden border border-[#eee]">
+                    <img [src]="'data:image/jpeg;base64,' + packageData().fotoBase64" class="w-full h-full object-cover sepia-[0.2]" [class.blur-md]="isPrivacyViolation()">
+                    
+                    @if(isPrivacyViolation()) {
+                        <div class="absolute inset-0 flex items-center justify-center bg-red-900/50 backdrop-blur-sm">
+                            <span class="text-white font-black text-xl">🚫</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="text-center mt-1 font-mono text-8px font-bold text-[#2a2320] uppercase tracking-wider truncate border-t border-[#eee] pt-0.5">PROT. #{{ packageData().id?.substring(0,6) || 'TEMP' }}</div>
+                
+                @if (!isReadOnly()) {
+                    <button (click)="removeFoto(); $event.stopPropagation()" class="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center shadow-md font-bold text-xs border-2 border-[#FDFBF7] cursor-pointer z-20 hover:bg-red-500">×</button>
+                }
+            </div>
+            
+            @if(isPrivacyViolation()) {
+                <div class="w-full max-w-sm bg-red-100 border border-red-600 text-red-900 p-1 rounded-sm text-center animate-pulse shadow-lg">
+                    <p class="text-8px font-black uppercase">🚫 BLOQUEIO DE SEGURANÇA</p>
+                </div>
+            }
+
+        } @else {
+            <!-- MODIFIED SECTION START -->
+            <!-- GEMINI SIMBIOSE VISION UPGRADE -->
+            <button (click)="openScanner()" 
+                    class="relative w-full h-20 bg-black rounded-[20px] overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(255,255,255,0.05)] border border-[#111] group active:scale-[0.98] transition-all duration-300 flex items-center justify-between px-4 cursor-pointer">
+                
+                <!-- Chassis Texture (Carbon) -->
+                <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-30 mix-blend-overlay"></div>
+                
+                <!-- TEXT CONTENT (Left) -->
+                <div class="relative z-20 flex flex-col items-start">
+                    <div class="flex items-center gap-1 mb-0.5">
+                        <div class="w-1.5 h-1.5 bg-[#FF6321] rounded-full shadow-[0_0_5px_#FF6321] animate-pulse"></div>
+                        <span class="text-[#FF6321] text-7px font-black uppercase tracking-[0.2em]">
+                            Simbiose Lens
+                        </span>
+                    </div>
+                    <span class="text-lg font-serif font-black text-[#EAE0D5] uppercase tracking-widest leading-none drop-shadow-md">
+                        Scanner
+                    </span>
+                </div>
+                
+                <!-- THE LENS ASSEMBLY (Right) -->
+                <div class="relative z-20 w-14 h-14 shrink-0">
+                    <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#333] via-[#111] to-black border border-[#333]"></div>
+                    <div class="absolute inset-0.5 rounded-full border-[1px] border-[#FF6321] opacity-90 shadow-[0_0_10px_#FF6321]"></div>
+                    <div class="absolute inset-1.5 rounded-full bg-black overflow-hidden flex items-center justify-center">
+                        <div class="w-5 h-5 bg-[#0a0a0a] rounded-full border border-[#222] flex items-center justify-center">
+                            <div class="w-2 h-2 bg-[#002b5b] rounded-full shadow-[0_0_10px_#002b5b] animate-[pulse_3s_infinite]"></div>
+                        </div>
+                    </div>
+                </div>
+            </button>
+        }
+    </div>
+
+    <!-- FORM FIELDS (PAPER STYLE) -->
+    <div class="w-full max-w-lg flex flex-col gap-4">
+        
+        <!-- TRACKING (STAMP STYLE) -->
+        @if (!isCorrespondenceMode()) {
+            <div class="relative bg-[#F2EBE5] border-l-8 border-[#E86C26] p-4 shadow-md border-y border-r border-[#d1c4b5]">
+                <label class="block text-xs font-bold text-[#E86C26] uppercase mb-2 tracking-widest">Código de Rastreio / QR Code</label>
+                <input [ngModel]="packageData().codigoRastreio" 
+                       (ngModelChange)="updateModel('codigoRastreio', $event)"
+                       [disabled]="isReadOnly()"
+                       name="tracking_code_safe"
+                       autocomplete="off"
+                       type="text" 
+                       placeholder="NÃO DETECTADO"
+                       class="w-full bg-transparent border-b-2 border-[#2a2320] py-2 text-sm font-mono font-black text-[#2a2320] placeholder-[#2a2320]/30 outline-none uppercase tracking-widest focus:border-[#E86C26] transition-colors">
+            </div>
+        }
+
+        <!-- DESTINATÁRIO -->
+        <div class="relative">
+            <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-2 tracking-widest ml-1">Destinatário</label>
+            <input [ngModel]="packageData().destinatarioNome" 
+                   (ngModelChange)="updateModel('destinatarioNome', $event)"
+                   [disabled]="isReadOnly() || isTriagemSigning()"
+                   name="destinatario_safe"
+                   autocomplete="off"
+                   type="text" 
+                   placeholder="DIGITE O NOME..."
+                   class="w-full bg-white border-b-2 border-[#2a2320] py-3 px-4 text-base font-bold text-[#2a2320] placeholder-[#2a2320]/20 outline-none uppercase truncate shadow-md rounded-t-md hover:bg-[#FDFBF7] focus:border-[#E86C26] transition-all">
+        </div>
+
+        <!-- BLOCO | APTO -->
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-2 text-center">Bloco</label>
+                <input [ngModel]="packageData().bloco" 
+                       (ngModelChange)="onAddressChange('bloco', $event)"
+                       [disabled]="isReadOnly() || isTriagemSigning()"
+                       name="bloco_safe"
+                       autocomplete="off"
+                       type="text" 
+                       class="w-full bg-white border-b-2 border-[#2a2320] py-3 text-center text-lg font-black uppercase text-[#2a2320] outline-none focus:border-[#E86C26] transition-all rounded-t-md shadow-md">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-2 text-center">Unidade</label>
+                <input [ngModel]="packageData().apto" 
+                       (ngModelChange)="onAddressChange('apto', $event)"
+                       [disabled]="isReadOnly() || isTriagemSigning()"
+                       name="apto_safe"
+                       autocomplete="off"
+                       type="text" 
+                       class="w-full bg-white border-b-2 border-[#2a2320] py-3 text-center text-lg font-black uppercase text-[#2a2320] outline-none focus:border-[#E86C26] transition-all rounded-t-md shadow-md">
+            </div>
+        </div>
+
+        <!-- TRANSPORTADORA -->
+        <div class="relative">
+            <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-2 ml-1">Origem / Transportadora</label>
+            
+            @if (showInlineCarrierSuggestions() && carrierSuggestions().length > 0) {
+                <div class="absolute w-full bottom-full mb-1 bg-white border border-[#2a2320] shadow-xl z-50 rounded-t-sm overflow-hidden max-h-40 overflow-y-auto">
+                    @for (carrier of carrierSuggestions(); track carrier) {
+                        <button (mousedown)="selectInlineCarrier(carrier)" class="w-full text-left p-3 hover:bg-[#E86C26] hover:text-white border-b border-[#eee] last:border-0 text-xs font-bold uppercase transition-colors text-[#2a2320]">
+                            {{ carrier }}
+                        </button>
+                    }
+                </div>
+            }
+
+            <input [ngModel]="packageData().transportadora"
+                   (ngModelChange)="onTransportadoraInput($event)"
+                   (blur)="onTransportadoraBlur()"
+                   [disabled]="isReadOnly()"
+                   name="transp_safe"
+                   autocomplete="off"
+                   placeholder="DIGITE A TRANSPORTADORA..."
+                   type="text"
+                   class="w-full bg-white border-b-2 border-[#2a2320] py-3 px-4 text-sm font-bold uppercase text-[#2a2320] outline-none placeholder-[#2a2320]/20 shadow-md rounded-t-md hover:bg-[#FDFBF7] focus:border-[#E86C26] transition-all">
+
+        </div>
+
+        <!-- ENTREGADOR (ACCORDION) -->
+        <div class="border-2 border-[#2a2320] rounded-lg shadow-md bg-white overflow-hidden">
+            <button type="button" (click)="toggleCourierDetails()" class="w-full flex items-center justify-between p-4 text-sm font-black uppercase text-[#2a2320] hover:bg-[#FDFBF7] transition-colors">
+                <span class="flex items-center gap-2">
+                    <span class="text-lg">+</span> Dados do Entregador (Opcional)
+                </span>
+                <span class="text-xl">{{ showCourierDetails() ? '▲' : '▼' }}</span>
+            </button>
+            @if (showCourierDetails()) {
+                <div class="p-4 border-t-2 border-[#2a2320] bg-[#FDFBF7]">
+                    <input [ngModel]="packageData().nomeEntregador" 
+                           (ngModelChange)="updateModel('nomeEntregador', $event)"
+                           placeholder="NOME DO ENTREGADOR..."
+                           class="w-full bg-white border-b-2 border-[#2a2320] py-3 px-4 text-sm font-bold uppercase text-[#2a2320] outline-none shadow-sm rounded-t-md focus:border-[#E86C26] transition-all mb-4">
+                    <input [ngModel]="packageData().telefoneEntregador"
+                           (ngModelChange)="updateModel('telefoneEntregador', $event)"
+                           placeholder="TELEFONE DO ENTREGADOR..."
+                           class="w-full bg-white border-b-2 border-[#2a2320] py-3 px-4 text-sm font-bold uppercase text-[#2a2320] outline-none shadow-sm rounded-t-md focus:border-[#E86C26] transition-all">
+                </div>
+            }
+        </div>
+
+        <!-- CONDIÇÃO (BUTTONS) -->
+        <div class="w-full">
+            <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-3 ml-1">Estado de Recebimento</label>
+            <div class="grid grid-cols-2 gap-3">
+                @for (condition of ['Intacta', 'Amassada', 'Rasgada', 'Violada']; track condition) {
+                    <button type="button" 
+                            (click)="!isReadOnly() && updateModel('condicaoFisica', condition)"
+                            [class.bg-[#E86C26]]="packageData().condicaoFisica === condition"
+                            [class.text-white]="packageData().condicaoFisica === condition"
+                            [class.border-[#E86C26]]="packageData().condicaoFisica === condition"
+                            class="p-4 text-sm font-bold uppercase border-2 border-[#2a2320] bg-white text-[#2a2320] shadow-md rounded-md hover:bg-[#FDFBF7] transition-all">
+                        {{ condition }}
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- FOOTER (INK ON PAPER) -->
+  <div class="sticky bottom-0 shrink-0 p-4 pb-16 bg-[#EAE0D5] border-t-4 border-[#2a2320] flex gap-4 z-50">
+    <button type="button" 
+            (click)="showCancelModal.set(true)" 
+            [disabled]="packageData().status === 'ENTREGUE' || packageData().status === 'CANCELADA'" 
+            class="flex-1 py-4 text-0_8rem font-black uppercase text-[#2a2320] border-2 border-[#2a2320] rounded-md hover:bg-[#d1c4b5] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+      Cancelar
+    </button>
+    <button type="button" 
+            (click)="saveNew()" 
+            [disabled]="isEditMode()" 
+            class="flex-1 py-4 text-0_8rem font-black uppercase text-white bg-[#2a2320] rounded-md hover:bg-[#E86C26] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+      Carimbar
+    </button>
+  </div>
+</div>
+
+<style>
+  /* Apply 20% reduction to text elements */
+  .text-sm { font-size: 0.8rem; line-height: 1.25rem; }
+  .text-base { font-size: 0.8rem; line-height: 1.25rem; }
+  .text-lg { font-size: 0.96rem; line-height: 1.5rem; }
+  .text-xs { font-size: 0.64rem; line-height: 1rem; }
+  .text-10px { font-size: 8px; line-height: 1rem; }
+  .text-8px { font-size: 6.4px; line-height: 1rem; }
+  .text-9px { font-size: 7.2px; line-height: 1rem; }
+  .text-7px { font-size: 5.6px; line-height: 1rem; }
+  .text-0_8rem { font-size: 0.8rem; line-height: 1.25rem; }
+  .text-90percent { font-size: 90%; line-height: 1rem; }
+</style>
+
+<style>
+@keyframes shutterZoom {
+  0% { transform: scale(0.8) translateY(20px); opacity: 0; filter: blur(5px); }
+  60% { transform: scale(1.05); filter: blur(0px); }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.animate-shutter-intro {
+  animation: shutterZoom 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+</style>
+
+<!-- LIMIT REACHED MODAL (AD REWARD) -->
+@if (showLimitModal()) {
+    <div class="fixed inset-0 z-[9500] bg-black/90 flex flex-col items-center justify-center p-6 animate-fadeIn backdrop-blur-md">
+        <div class="bg-[#FDFBF7] border-4 border-[#2a2320] w-full max-w-sm shadow-[0_0_50px_rgba(232,108,38,0.3)] relative rounded-sm overflow-hidden transform scale-100">
+            
+            <!-- Header (Impactful) -->
+            <div class="bg-[#2a2320] p-6 text-center border-b-4 border-[#E86C26]">
+                <span class="text-4xl block mb-2">🛑</span>
+                <h3 class="text-xl font-black text-[#EAE0D5] uppercase tracking-widest leading-none">Limite Grátis Atingido</h3>
+                <p class="text-10px text-[#E86C26] font-bold uppercase mt-2">Plano Start</p>
+            </div>
+
+            <!-- Content -->
+            <div class="p-6 text-center">
+                @if (isWatchingAd()) {
+                    <!-- AD SIMULATION -->
+                    <div class="py-8">
+                        <div class="w-16 h-16 border-4 border-[#E86C26] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                        <p class="text-sm font-bold text-[#2a2320] uppercase animate-pulse">Assistindo Anúncio...</p>
+                        <p class="text-xs font-mono text-[#5c4d46] mt-2">Aguarde {{ adTimer() }}s</p>
+                    </div>
+                } @else {
+                    <p class="text-xs text-[#5c4d46] mb-6 font-medium leading-relaxed">
+                        Você atingiu o limite de 25 etiquetas. Para continuar usando gratuitamente, assista um vídeo curto e ganhe +5 etiquetas.
+                    </p>
+                    
+                    <button (click)="watchAdAndRetry()" class="w-full py-4 bg-[#E86C26] text-white font-black uppercase text-xs tracking-widest shadow-lg hover:bg-[#d55b1b] transition-all rounded-sm flex items-center justify-center gap-2 border-2 border-[#2a2320] active:scale-95 mb-3">
+                        <span>📺</span> Assistir Vídeo (+5)
+                    </button>
+                    
+                    <button (click)="buyUnlimitedPlan()" class="w-full py-3 bg-[#2a2320] text-[#EAE0D5] font-black uppercase text-xs tracking-widest hover:bg-black transition-all rounded-sm border-2 border-[#2a2320]">
+                        Assinar Ilimitado (R$ 19,90)
+                    </button>
+                    
+                    <button (click)="closeLimitModal()" class="mt-4 text-10px text-gray-500 underline font-bold uppercase hover:text-[#2a2320]">
+                        Cancelar e Sair
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- CANCEL MODAL -->
+@if (showCancelModal()) {
+    <div class="fixed inset-0 z-[9000] bg-black/90 flex items-center justify-center p-4 animate-fadeIn backdrop-blur-sm">
+        <div class="bg-[#FDFBF7] border-4 border-red-600 p-6 w-full max-w-sm shadow-2xl relative rounded-sm">
+            <h3 class="text-xl font-black text-red-600 uppercase mb-4 text-center tracking-widest">Cancelar Registro</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-10px font-bold text-[#5c4d46] uppercase mb-1">Motivo do Cancelamento</label>
+                    <input [ngModel]="cancelReason()" (ngModelChange)="cancelReason.set($event)" 
+                           placeholder="EX: ERRO DE DIGITAÇÃO" class="w-full p-3 border border-red-200 bg-white text-[#2a2320] uppercase font-bold text-xs outline-none focus:border-red-500 transition-colors rounded-sm placeholder-[#2a2320]/30">
+                </div>
+                <div>
+                    <label class="block text-10px font-bold text-[#5c4d46] uppercase mb-1">Sua Senha (Confirmação)</label>
+                    <input [ngModel]="cancelPassword()" (ngModelChange)="cancelPassword.set($event)" 
+                           type="password" maxlength="6" inputmode="numeric" placeholder="******" class="w-full p-3 border border-red-200 bg-white text-[#2a2320] text-center font-bold text-lg tracking-[0.5em] outline-none focus:border-red-500 transition-colors rounded-sm placeholder-[#2a2320]/30">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button (click)="closeCancelModal()" class="flex-1 py-3 border border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs hover:bg-[#2a2320] hover:text-white transition-colors rounded-sm">Voltar</button>
+                <button (click)="confirmCancelPackage()" class="flex-1 py-3 bg-red-600 text-white font-black uppercase text-xs shadow-md hover:bg-red-700 transition-colors rounded-sm tracking-widest">Confirmar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- TRIAGEM SETUP MODAL -->
+@if (showTriagemSetupModal()) {
+    <div class="fixed inset-0 z-[7000] bg-black/95 flex flex-col items-center justify-center p-6 animate-fadeIn backdrop-blur-md">
+        <div class="w-full max-w-sm bg-[#050505] border-2 border-[#E86C26] p-6 shadow-[0_0_60px_rgba(232,108,38,0.2)] rounded-sm">
+            <h3 class="text-xl font-black text-white uppercase mb-4 text-center tracking-[0.2em]">
+                <span class="text-[#E86C26]">⚡</span> Lote Rápido
+            </h3>
+            <p class="text-xs text-gray-400 text-center mb-6 border-b border-white/10 pb-4">1,7s por QRCode. Cadastre o entregador uma vez e bipe todas as caixas. A assinatura será única no final.</p>
+            
+            <div class="space-y-4">
+                <div class="relative">
+                    <label class="block text-10px font-bold text-gray-500 uppercase mb-1">Entregador</label>
+                    <input [ngModel]="triagemCourierName()" (ngModelChange)="triagemCourierName.set($event); onCourierNameInput()" 
+                           placeholder="NOME DO MOTORISTA" class="w-full bg-white/5 border border-white/20 p-3 text-sm font-black uppercase outline-none focus:border-[#E86C26] text-white placeholder:text-white/20 rounded-sm transition-colors">
+                    
+                    @if (showCourierSuggestions() && courierSuggestions().length > 0) {
+                        <div class="absolute w-full mt-1 bg-[#111] border border-[#E86C26] shadow-xl z-50 rounded-b-sm overflow-hidden max-h-40 overflow-y-auto">
+                            @for (courier of courierSuggestions(); track courier.name) {
+                                <button (click)="selectCourierSuggestion(courier)" class="w-full text-left p-3 hover:bg-[#E86C26] hover:text-black border-b border-white/10 last:border-0 text-xs font-bold uppercase transition-colors text-gray-300">
+                                    {{ courier.name }}
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+                <div>
+                    <label class="block text-10px font-bold text-gray-500 uppercase mb-1">WhatsApp (Para Comprovante)</label>
+                    <input [ngModel]="triagemCourierPhone()" (ngModelChange)="triagemCourierPhone.set($event)" 
+                           type="tel" placeholder="11999999999" class="w-full bg-white/5 border border-white/20 p-3 text-sm font-black uppercase outline-none focus:border-[#E86C26] text-white placeholder:text-white/20 rounded-sm transition-colors">
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-8">
+                <button (click)="closeTriagemSetup()" class="flex-1 py-3 border border-white/20 text-gray-300 font-bold uppercase text-xs hover:bg-white/10 hover:text-white rounded-sm transition-colors">Cancelar</button>
+                <button (click)="confirmTriagemSetup()" class="flex-1 py-3 bg-[#E86C26] text-black font-black uppercase text-xs shadow-[0_0_15px_rgba(232,108,38,0.4)] tracking-widest hover:bg-white hover:text-black rounded-sm transition-all">Iniciar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- TRIAGEM SIGNATURE MODAL -->
+@if (isTriagemSigning()) {
+    <div class="fixed inset-0 z-[8000] bg-[#050505] flex flex-col items-center justify-center p-0 md:p-4">
+        <div class="bg-[#FDFBF7] border-4 border-[#2a2320] w-full h-full md:h-[80vh] md:max-w-4xl relative shadow-2xl flex flex-col rounded-none md:rounded-sm">
+            <div class="bg-[#EAE0D5] p-4 border-b border-[#2a2320] flex justify-between items-center shrink-0 safe-area-pt">
+                <div>
+                    <h3 class="font-black text-[#2a2320] uppercase text-sm tracking-widest">
+                        {{ showBatchReview() ? 'CONFERÊNCIA DO LOTE' : 'ASSINATURA DO ENTREGADOR' }}
+                    </h3>
+                    <p class="text-10px text-[#5c4d46]">{{ triagemBatch().length }} volumes registrados.</p>
+                </div>
+                @if (!showBatchReview()) {
+                    <button (click)="clearTriagemSignature()" class="text-xs font-bold text-red-600 uppercase underline hover:text-red-500">Limpar</button>
+                }
+            </div>
+            
+            <div class="flex-1 relative bg-white overflow-hidden">
+                @if (showBatchReview()) {
+                    <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-4">
+                        <div class="bg-white border border-[#d1c4b5] shadow-sm rounded-sm">
+                            <div class="grid grid-cols-12 gap-2 p-2 bg-[#F2EBE5] text-[#5c4d46] text-9px font-black uppercase tracking-wider border-b border-[#d1c4b5]">
+                                <div class="col-span-1 text-center">#</div>
+                                <div class="col-span-5">Destinatário / Local</div>
+                                <div class="col-span-2">Transp.</div>
+                                <div class="col-span-4 text-right">Rastreio</div>
+                            </div>
+                            @for (item of triagemBatch(); track item.id; let i = $index) {
+                                <div class="grid grid-cols-12 gap-2 p-2 border-b border-[#eee] text-10px items-center hover:bg-[#FDFBF7] transition-colors">
+                                    <div class="col-span-1 text-center font-bold text-[#5c4d46]">{{ i + 1 }}</div>
+                                    <div class="col-span-5 flex flex-col justify-center">
+                                        <span class="font-bold uppercase text-[#2a2320] truncate leading-tight">{{ item.destinatarioNome || 'A CLASSIFICAR' }}</span>
+                                        @if(item.bloco && item.apto) {
+                                            <span class="text-9px font-mono text-[#E86C26] font-bold">BL {{ item.bloco }} - AP {{ item.apto }}</span>
+                                        }
+                                    </div>
+                                    <div class="col-span-2 font-bold uppercase text-[#5c4d46] truncate text-9px">{{ item.transportadora }}</div>
+                                    <div class="col-span-4 font-mono text-[#2a2320] text-10px font-bold text-right break-all leading-tight">
+                                        {{ item.codigoRastreio || 'S/N' }}
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                } @else {
+                    <div class="absolute inset-0 cursor-crosshair bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] overflow-hidden">
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                            <span class="text-4xl font-serif text-[#2a2320] font-bold">X ___________</span>
+                        </div>
+                        <canvas #signatureCanvas class="absolute inset-0 w-full h-full" style="touch-action: none;"></canvas>
+                    </div>
+                }
+            </div>
+
+            <div class="p-4 bg-[#EAE0D5] border-t border-[#2a2320] flex gap-4 shrink-0 safe-area-pb">
+                @if (showBatchReview()) {
+                    <button (click)="isTriagemSigning.set(false); openScanner()" class="flex-1 py-4 md:py-3 border-2 border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs hover:bg-white transition-colors rounded-sm">
+                        Voltar ao Scanner
+                    </button>
+                    <button (click)="confirmBatchReview()" class="flex-[2] py-4 md:py-3 bg-[#E86C26] border-2 border-[#2a2320] text-black font-black uppercase text-xs shadow-md tracking-widest hover:bg-white hover:text-black rounded-sm transition-colors">
+                        CIENTE (LIBERAR ASSINATURA)
+                    </button>
+                } @else {
+                    <button (click)="showBatchReview.set(true)" class="flex-1 py-4 md:py-3 border-2 border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs hover:bg-white transition-colors rounded-sm">
+                        Revisar Lista
+                    </button>
+                    <button (click)="saveTriagemBatch()" class="flex-[2] py-4 md:py-3 bg-[#22c55e] border-2 border-[#2a2320] text-white font-black uppercase text-xs shadow-md tracking-widest hover:bg-green-600 rounded-sm transition-colors">
+                        CONFIRMAR ENTRADA
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- CAMERA OVERLAY -->
+@if (isScannerOpen()) {
+    <div class="fixed inset-0 z-[5000] bg-black flex flex-col">
+        <!-- SCANNER UI -->
+        <video #scannerVideo class="absolute inset-0 w-full h-full object-cover opacity-80" playsinline muted></video>
+        <canvas #scannerCanvas class="hidden"></canvas>
+        <canvas #qrCodeCanvas class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+        
+        <style>
+            @keyframes scan {
+                0% { top: 0; opacity: 0; }
+                10% { opacity: 1; }
+                90% { opacity: 1; }
+                100% { top: 100%; opacity: 0; }
+            }
+            .animate-scan-line {
+                animation: scan 1.5s linear infinite;
+            }
+        </style>
+
+        <div class="absolute inset-0 pointer-events-none z-20">
+            <div class="absolute top-4 left-4 w-12 h-12 border-t-4 border-l-4 border-[#E86C26]/80 rounded-tl-lg"></div>
+            <div class="absolute top-4 right-4 w-12 h-12 border-t-4 border-r-4 border-[#E86C26]/80 rounded-tr-lg"></div>
+            <div class="absolute bottom-20 left-4 w-12 h-12 border-b-4 border-l-4 border-[#E86C26]/80 rounded-bl-lg"></div>
+            <div class="absolute bottom-20 right-4 w-12 h-12 border-b-4 border-r-4 border-[#E86C26]/80 rounded-br-lg"></div>
+
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-white/30 rounded-lg flex items-center justify-center flex-col">
+                @if (scanStabilizationProgress() > 0) {
+                    <div class="w-32 h-1 bg-white/20 rounded overflow-hidden mb-2">
+                        <div class="h-full bg-[#E86C26] transition-all ease-linear"
+                             [style.width.%]="scanStabilizationProgress()"></div>
+                    </div>
+                }
+                
+                <div class="w-2 h-2 bg-[#E86C26] rounded-full shadow-[0_0_10px_#E86C26]"></div>
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 text-8px font-mono text-[#E86C26] bg-black/80 px-1 border border-[#E86C26]/50">TARGET</div>
+            </div>
+
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-[#E86C26] shadow-[0_0_15px_#E86C26] animate-scan-line opacity-70"></div>
+
+            <div class="absolute top-20 right-6 text-right font-mono text-8px text-[#E86C26]/80 leading-tight">
+                <p>REC: ON</p>
+                <p>ISO: AUTO</p>
+                <p>AI: V4.2</p>
+                <p>FPS: 60</p>
+            </div>
+        </div>
+        
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-10 bg-gradient-to-b from-black/90 to-transparent">
+            <div class="text-white">
+                <h3 class="font-black uppercase tracking-widest text-sm text-[#E86C26]">{{ lockStatus() }}</h3>
+                @if (isTriagemMode()) {
+                    <p class="text-10px text-white/80 mt-1 font-mono">LOTE: {{ triagemBatch().length }} ITENS</p>
+                }
+            </div>
+            
+            <div class="flex gap-4 items-center pointer-events-auto">
+                @if (showFlash()) {
+                    <button (click)="toggleFlash()" 
+                            class="w-10 h-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md active:scale-95"
+                            [class.bg-[#E86C26]]="flashActive()"
+                            [class.text-black]="flashActive()"
+                            [class.border-[#E86C26]]="flashActive()"
+                            [class.shadow-[0_0_15px_#E86C26]]="flashActive()"
+                            [class.bg-white/10]="!flashActive()"
+                            [class.text-white]="!flashActive()"
+                            [class.border-white/20]="!flashActive()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </button>
+                }
+                
+                <button (click)="closeScanner()" class="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full text-white font-bold flex items-center justify-center border border-white/20 active:scale-95 hover:bg-white/20 transition-colors">✕</button>
+            </div>
+        </div>
+
+        @if (isTriagemMode()) {
+            <div class="absolute bottom-10 left-0 right-0 px-6 flex justify-center z-20 pointer-events-auto">
+                <button (click)="finishTriagemBatch()" class="w-full max-w-xs py-4 bg-[#22c55e] text-black font-black uppercase tracking-widest shadow-[0_0_30px_rgba(34,197,94,0.5)] rounded-full border-2 border-white active:scale-95 transition-transform flex items-center justify-center gap-2 hover:bg-white hover:text-[#22c55e]">
+                    <span>✅</span> CONCLUIR LOTE ({{ triagemBatch().length }})
+                </button>
+            </div>
+        }
+        
+        <!-- BLACKOUT NEURAL OVERLAY -->
+        <!-- Oculta a câmera e mostra apenas o processamento Simbiose -->
+        @if (isProcessingScan()) {
+            <div class="absolute inset-0 z-[6000] bg-[#050505] flex flex-col items-center justify-center animate-[fadeIn_0.1s_ease-out]">
+                <!-- Simbiose Effect -->
+                <div class="relative">
+                    <h2 class="text-3xl font-black text-[#E86C26] tracking-[0.2em] uppercase mb-2 text-center animate-pulse drop-shadow-[0_0_15px_#E86C26]">Simbiose</h2>
+                    <!-- Glow Line -->
+                    <div class="h-0.5 w-full bg-[#E86C26] shadow-[0_0_20px_#E86C26] animate-[width_1s_infinite]"></div>
+                </div>
+                <span class="text-[#E86C26] font-mono text-10px mt-4 animate-bounce">Processando...</span>
+            </div>
+        }
+    </div>
+}
+
+@if (mostrarPromo()) {
+    <div class="fixed inset-0 z-[70000] bg-black/95 flex items-center justify-center p-6 animate-[fadeIn_0.25s_ease-in-out]">
+        <div class="bg-black rounded-2xl shadow-[0_0_50px_rgba(255,106,0,0.4)] border-2 border-[#ff6a00] max-w-md w-full relative transform scale-105 overflow-hidden flex flex-col">
+             <div class="p-6 text-center">
+                <h3 class="text-xl font-bold text-white mb-2 uppercase tracking-wide">Conteúdo Recomendado</h3>
+                <button (click)="abrirLinkPromo()" class="bg-[#ff6a00] text-black font-bold py-4 px-6 rounded-xl w-full mb-4 shadow-lg hover:bg-white hover:text-black transition-colors active:scale-95 uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+                    <span>Acessar agora</span>
+                </button>
+                <small class="text-10px text-gray-500 uppercase tracking-widest animate-pulse font-bold block mt-2">Retornando ao leitor em instantes...</small>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showCameraPermissionPrompt()) {
+  <div class="fixed inset-0 z-[6000] bg-black/90 flex items-center justify-center p-6 backdrop-blur-md animate-[fadeIn_0.2s]">
+    <div class="bg-[#050505] border-l-8 border-[#E86C26] p-8 max-w-sm w-full shadow-2xl relative font-serif">
+      <h3 class="text-xl font-black text-white uppercase">Acesso à Câmera</h3>
+      <div class="flex flex-col gap-3 mt-4">
+        <button (click)="proceedWithCamera()" class="w-full py-3 bg-[#E86C26] text-black font-bold uppercase text-xs tracking-widest hover:bg-white transition-colors">Permitir Acesso</button>
+        <button (click)="cancelCameraPermission()" class="w-full text-center text-xs text-gray-500 font-bold uppercase hover:text-white transition-colors">Cancelar</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (isInitializingScanner()) {
+    <div class="fixed inset-0 z-[60000] bg-[#050505] flex flex-col items-center justify-center overflow-hidden">
+        <h2 class="text-3xl font-black text-[#E86C26] tracking-[0.2em] uppercase mb-2 text-center">Simbiose</h2>
+        <span class="text-[#E86C26] font-mono text-10px">Processando...</span>
+    </div>
+}
+
+<!-- SUCCESS MODAL (UPDATED WITH PDF SHARE) -->
+@if (showSuccessModal()) {
+    <div class="fixed inset-0 z-[8000] bg-black/90 flex items-center justify-center p-4 animate-[fadeIn_0.3s] backdrop-blur-sm">
+        <div class="bg-[#FDFBF7] border-4 border-[#22c55e] p-8 w-full max-w-sm text-center shadow-[0_0_60px_rgba(34,197,94,0.3)] relative rotate-1 rounded-sm">
+            <div class="absolute top-4 right-4 w-16 h-16 border-4 border-[#22c55e] rounded-full flex items-center justify-center opacity-20 rotate-[-20deg]">
+                <span class="text-8px font-black text-[#22c55e] uppercase">Aprovado</span>
+            </div>
+            
+            <h3 class="text-2xl font-black text-[#2a2320] uppercase mb-2">Entrada Registrada</h3>
+            <p class="text-xs text-[#5c4d46] mb-6 uppercase tracking-wide font-bold">Protocolo Arquivado com Sucesso</p>
+            
+            <div class="space-y-3">
+                <button (click)="shareEntryProof()" class="w-full py-4 bg-[#22c55e] border border-[#2a2320] text-white font-bold uppercase text-xs tracking-widest hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-sm rounded-sm">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.506-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.876 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                    ENVIAR NO WHATSAPP
+                </button>
+                
+                <button (click)="viewPdf()" class="w-full py-4 bg-white border border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs tracking-widest hover:bg-[#F2EBE5] transition-colors shadow-sm rounded-sm">
+                    Ver PDF
+                </button>
+
+                <button (click)="closeSuccessModal()" 
+                        [disabled]="!hasSharedProof()"
+                        class="w-full py-3 text-[#5c4d46] font-bold uppercase text-10px underline hover:text-[#2a2320] disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
+                    {{ hasSharedProof() ? 'Finalizar e Fechar' : 'Envie o comprovante para finalizar' }}
+                </button>
+            </div>
+        </div>
+    </div>
+}

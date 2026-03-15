@@ -1,0 +1,31 @@
+<div class="fixed inset-0 z-[5000] bg-gradient-to-br from-zinc-950 to-black flex flex-col">
+    <!-- SCANNER UI -->
+    <video #scannerVideo class="absolute inset-0 w-full h-full object-cover opacity-80" playsinline muted></video>
+    <canvas #scannerCanvas class="hidden"></canvas>
+    
+    <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-10 bg-gradient-to-b from-black/80 to-transparent">
+        <div class="text-white">
+            <h3 class="font-black uppercase tracking-widest text-sm text-[#E86C26] drop-shadow-md">SCANNING</h3>
+        </div>
+        
+        <div class="flex gap-4 items-center pointer-events-auto">
+            @if (showFlash()) {
+                <button (click)="toggleFlash()" 
+                        class="w-10 h-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md active:scale-95 shadow-inner"
+                        [class.bg-[#E86C26]]="flashActive()"
+                        [class.text-black]="flashActive()"
+                        [class.border-[#E86C26]]="flashActive()"
+                        [class.shadow-[0_0_15px_#E86C26]]="flashActive()"
+                        [class.bg-zinc-900/50]="!flashActive()"
+                        [class.text-white]="!flashActive()"
+                        [class.border-white/10]="!flashActive()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </button>
+            }
+            
+            <button (click)="closeScanner()" class="w-10 h-10 bg-zinc-900/50 backdrop-blur-md rounded-full text-white font-bold flex items-center justify-center border border-white/10 active:scale-95 hover:bg-zinc-800/50 transition-colors shadow-inner">✕</button>
+        </div>
+    </div>
+</div>
