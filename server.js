@@ -25,6 +25,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // ================================
+// RUNTIME CONFIG (API KEYS)
+// ================================
+app.get('/api/config', (req, res) => {
+  res.send({
+    geminiApiKey: process.env.GEMINI_API_KEY || ''
+  });
+});
+
+// ================================
 // IP TRACKING FOR ADMINS
 // ================================
 const adminAllowedIps = new Map(); // userId -> string[]
