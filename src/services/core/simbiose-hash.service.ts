@@ -39,7 +39,7 @@ export class SimbioseHashService {
     const key = await this.deriveKey(keyMaterial, salt);
     
     const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv },
+      { name: "AES-GCM", iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
       key,
       enc.encode(plainText)
     );
@@ -62,9 +62,9 @@ export class SimbioseHashService {
         const key = await this.deriveKey(keyMaterial, salt);
 
         const decrypted = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: iv },
+          { name: "AES-GCM", iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
           key,
-          data
+          data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
         );
 
         return new TextDecoder().decode(decrypted);
@@ -91,7 +91,7 @@ export class SimbioseHashService {
     return window.crypto.subtle.deriveKey(
       {
         "name": "PBKDF2",
-        salt: salt,
+        salt: salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer,
         "iterations": 100000,
         "hash": "SHA-256"
       },
