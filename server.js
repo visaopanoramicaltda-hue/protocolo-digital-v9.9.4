@@ -77,6 +77,24 @@ app.get('/api/config', (req, res) => {
 });
 
 // ================================
+// TWA: DIGITAL ASSET LINKS
+// ================================
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.json([
+    {
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: process.env.TWA_PACKAGE_NAME || 'com.seuusuario.simbiose',
+        sha256_cert_fingerprints: [
+          process.env.TWA_SHA256_FINGERPRINT || 'COLE_AQUI_O_SHA256_DA_PLAY_STORE'
+        ]
+      }
+    }
+  ]);
+});
+
+// ================================
 // SPA FALLBACK
 // ================================
 app.get('/{*splat}', (req, res) => {
