@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Instala dependências
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copia o código fonte e faz o build
 COPY . .
@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Instala apenas dependências de produção
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Copia o build do Angular e o servidor
 COPY --from=build /app/dist ./dist
