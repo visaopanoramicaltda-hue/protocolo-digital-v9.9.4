@@ -12,11 +12,16 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": {
-              "base": "./dist",
-              "browser": "."
-            },
+            "outputPath": "./dist",
+            "index": "src/index.html",
             "browser": "index.tsx",
+            "styles": ["src/styles.css"],
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "tsConfig": "tsconfig.json",
             "serviceWorker": "ngsw-config.json"
           },
