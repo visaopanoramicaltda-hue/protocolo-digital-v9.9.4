@@ -1,6 +1,7 @@
 
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { DbService, Morador, Encomenda } from '../services/db.service';
 import { UiService } from './ui.service';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
@@ -110,7 +111,7 @@ export class GeminiService {
   private async initializeConfig() {
     try {
       // Busca a chave que o servidor disponibilizou
-      const config: any = await this.http.get('/api/config').toPromise();
+      const config: any = await firstValueFrom(this.http.get('/api/config'));
       if (config.geminiApiKey) {
         this.apiKey = config.geminiApiKey;
         this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
@@ -126,6 +127,7 @@ export class GeminiService {
         this.geminiApiStatus.set('CONFIGURED');
         console.log('🟠 Simbiose: Gemini API configurada via environment local.');
       } else {
+        this.geminiApiStatus.set('NOT_CONFIGURED');
         console.error('🔴 Simbiose: Erro ao carregar chave da API', err);
       }
     }

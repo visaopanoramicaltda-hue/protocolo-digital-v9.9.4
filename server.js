@@ -4,7 +4,6 @@ import cors from 'cors';
 import path from 'path';
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
-import fs from 'fs';
 
 // ================================
 // CONFIGURAÇÃO DO SERVIDOR
@@ -14,24 +13,6 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
-// ================================
-// RUNTIME CONFIG INJECTION
-// ================================
-const indexPath = path.join(import.meta.dirname, 'dist/browser/index.html');
-let indexHtml = '';
-try {
-  const raw = fs.readFileSync(indexPath, 'utf-8');
-  const runtimeConfig = JSON.stringify({
-    geminiApiKey: process.env.GEMINI_API_KEY || ''
-  });
-  indexHtml = raw.replace(
-    '</head>',
-    `<script>window.__RUNTIME_CONFIG__=${runtimeConfig};</script>\n</head>`
-  );
-} catch (e) {
-  console.warn('Could not inject runtime config:', e.message);
-}
 
 // Servir arquivos estáticos do Angular
 app.use(express.static(path.join(import.meta.dirname, 'dist/browser'), {
@@ -99,11 +80,7 @@ app.get('/api/config', (req, res) => {
 // SPA FALLBACK
 // ================================
 app.get('/{*splat}', (req, res) => {
-  if (indexHtml) {
-    res.type('html').send(indexHtml);
-  } else {
-    res.sendFile(path.join(import.meta.dirname, 'dist/browser/index.html'));
-  }
+  res.sendFile(path.join(import.meta.dirname, 'dist/browser/index.html'));
 });
 
 // ================================
