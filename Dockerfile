@@ -22,8 +22,8 @@ RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=build /app/dist ./dist
 COPY server.js .
 
-# Expõe a porta 3000
-EXPOSE 3000
+# Expõe a porta 8080 (Cloud Run)
+EXPOSE 8080
 
 # Inicia o servidor
 CMD ["node", "server.js"]

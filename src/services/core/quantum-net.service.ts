@@ -22,7 +22,7 @@ const SIGNALING_SERVERS: string[] = [
 ];
 
 if (typeof location !== 'undefined' && (location.protocol === 'http:' || location.protocol === 'https:')) {
-    const localWs = location.protocol.replace('http', 'ws') + '//' + location.hostname + ':3000';
+    const localWs = location.protocol.replace('http', 'ws') + '//' + location.host;
     SIGNALING_SERVERS.unshift(localWs);
 }
 
