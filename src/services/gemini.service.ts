@@ -74,7 +74,7 @@ export class GeminiService {
   
   private genAI: GoogleGenAI;
   private apiKey: string = '';
-  private initPromise: Promise<void>;
+  private readonly initPromise: Promise<void>;
   
   public evolutionStatus = signal<'IDLE' | 'ANALYZING' | 'EVOLVING' | 'COMPLETE' | 'OPTIMIZING'>('IDLE');
   public lastEvolution = signal<string>('');
@@ -112,7 +112,7 @@ export class GeminiService {
   private async initializeConfig() {
     try {
       // Busca a chave que o servidor disponibilizou
-      const config: any = await firstValueFrom(this.http.get('/api/config'));
+      const config = await firstValueFrom(this.http.get<{ geminiApiKey: string }>('/api/config'));
       if (config.geminiApiKey) {
         this.apiKey = config.geminiApiKey;
         this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
