@@ -87,6 +87,15 @@ wss.on('connection', (ws, req) => {
 });
 
 // ================================
+// RUNTIME CONFIG API
+// ================================
+app.get('/api/config', (req, res) => {
+  res.json({
+    geminiApiKey: process.env.GEMINI_API_KEY || ''
+  });
+});
+
+// ================================
 // SPA FALLBACK
 // ================================
 app.get('/{*splat}', (req, res) => {

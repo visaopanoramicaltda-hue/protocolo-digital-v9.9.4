@@ -1,5 +1,6 @@
 
 import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { DbService, Morador, Encomenda } from '../services/db.service';
 import { UiService } from './ui.service';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
@@ -66,6 +67,7 @@ export interface SimbioseMemory {
 export class GeminiService {
   private db = inject(DbService);
   private ui = inject(UiService);
+  private http = inject(HttpClient);
   private quantumNet = inject(QuantumNetService); 
   private deepSeek = inject(DeepSeekService); 
   
@@ -85,22 +87,8 @@ export class GeminiService {
   private memory: SimbioseMemory = { carrierFrequency: {}, residentFrequency: {}, residentAliases: {}, lastTraining: 0, neuralVersion: 1 };
 
   constructor() {
-    // Read API key from runtime config (injected by server) or Angular environment
-    const runtimeConfig = (window as any).__RUNTIME_CONFIG__;
-    const apiKey = runtimeConfig?.geminiApiKey || environment.geminiApiKey || '';
-    this.apiKey = apiKey;
-
-    try {
-      this.genAI = new GoogleGenAI({ apiKey });
-      if (this.apiKey) {
-        this.geminiApiStatus.set('CONFIGURED');
-      } else {
-        this.geminiApiStatus.set('NOT_CONFIGURED');
-      }
-    } catch (e) {
-      this.genAI = { models: {} } as any;
-      this.geminiApiStatus.set('NOT_CONFIGURED');
-    }
+    this.genAI = { models: {} } as any;
+    this.initializeConfig();
     
     this.loadOcrCache();
     this.loadMemory();
@@ -117,6 +105,30 @@ export class GeminiService {
             this.fundirMemoria(memoriaExterna);
         }
     });
+  }
+
+  private async initializeConfig() {
+    try {
+      // Busca a chave que o servidor disponibilizou
+      const config: any = await this.http.get('/api/config').toPromise();
+      if (config.geminiApiKey) {
+        this.apiKey = config.geminiApiKey;
+        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
+        this.geminiApiStatus.set('CONFIGURED');
+        console.log('🟠 Simbiose: Gemini API configurada com sucesso.');
+      }
+    } catch (err) {
+      // Fallback para configuração local (development)
+      const fallbackKey = environment.geminiApiKey || '';
+      if (fallbackKey) {
+        this.apiKey = fallbackKey;
+        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
+        this.geminiApiStatus.set('CONFIGURED');
+        console.log('🟠 Simbiose: Gemini API configurada via environment local.');
+      } else {
+        console.error('🔴 Simbiose: Erro ao carregar chave da API', err);
+      }
+    }
   }
   
   public getMemory(): Readonly<SimbioseMemory> {

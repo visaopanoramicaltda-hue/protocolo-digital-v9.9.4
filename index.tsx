@@ -8,6 +8,7 @@ if (!isDevMode()) {
 }
 
 import { provideRouter, withHashLocation } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
@@ -21,6 +22,7 @@ import { GreetingEffects } from './src/app/state/greeting.effects';
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
+    provideHttpClient(),
     provideRouter(routes, withHashLocation()),
     
     // NgRx Store Initialization com Checks de Imutabilidade Estritos
