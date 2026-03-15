@@ -33,7 +33,6 @@
       "updateMode": "prefetch",
       "resources": {
         "urls": [
-          "https://cdn.tailwindcss.com/**",
           "https://fonts.googleapis.com/**",
           "https://fonts.gstatic.com/**",
           "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"
