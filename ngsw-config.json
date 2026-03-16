@@ -23,8 +23,7 @@
       "updateMode": "prefetch",
       "resources": {
         "files": [
-          "/assets/**",
-          "/fallback.html"
+          "/assets/**"
         ]
       }
     },
