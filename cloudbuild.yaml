@@ -1,38 +1,36 @@
 steps:
-  # Build da imagem Docker
+  # 1. Build da Imagem Docker
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
-      - '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/simbiose-app:$SHORT_SHA', '.']
 
-  # Push da imagem para o Container Registry
+  # 2. Push para o Container Registry (Agora sem scanner caro!)
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+    args: ['push', 'gcr.io/$PROJECT_ID/simbiose-app:$SHORT_SHA']
 
-  # Deploy no Cloud Run com acesso público
+  # 3. Deploy no Cloud Run com Configurações de Economia Máxima
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'gcloud'
+    entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - '${_SERVICE_NAME}'
+      - 'protocolo-digital-v2-8' # Nome do seu serviço
       - '--image'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - 'gcr.io/$PROJECT_ID/simbiose-app:$SHORT_SHA'
       - '--region'
-      - '${_REGION}'
+      - 'us-central1'             # Ajuste para sua região se for diferente
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      - '--port'
-      - '8080'
-
-substitutions:
-  _SERVICE_NAME: protocolo-digital
-  _REGION: us-central1
+      # --- BLOCO DE ECONOMIA SIMBIOSE ---
+      - '--cpu=0.5'               # Usa apenas meia CPU
+      - '--memory=512Mi'          # Reduz memória para o mínimo seguro
+      - '--concurrency=80'        # 1 instância atende 80 pessoas
+      - '--min-instances=0'       # ESCALA ZERO (Não usa, não paga)
+      - '--max-instances=3'       # Evita que ataques gerem cobrança infinita
+      - '--set-env-vars=MODEL_NAME=gemini-1.5-flash' # Força o uso do Flash (Crédito Amigável)
 
 images:
-  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+  - 'gcr.io/$PROJECT_ID/simbiose-app:$SHORT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
