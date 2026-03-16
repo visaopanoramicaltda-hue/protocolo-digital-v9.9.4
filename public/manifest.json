@@ -7,34 +7,10 @@
   "theme_color": "#050505",
   "icons": [
     {
-      "src": "/icon-192x192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-192x192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icon-512x512.png",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAAbmVYSWZNTQAqAAAACAAFAQAABAAAAAEAAAAAQEABAAAAAEAAAAAh2kABAAAAAEAAAABKARIABAAAAAEAAAAAASgAAwAAAAEAAgAAAAAAAAABkggAAwAAAAEAAAAAAAAAAAABASgAAwAAAAEAAgAAAAAAANduNTkAAAAJcEhZcwAAMTYAADE2Az...",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512x512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }
