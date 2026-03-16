@@ -5,6 +5,7 @@
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
+  "id": "/",
   "display": "standalone",
   "display_override": [
     "window-controls-overlay",
@@ -49,6 +50,30 @@
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Protocolo",
+      "short_name": "Protocolo",
+      "url": "/novo-protocolo",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Scanner",
+      "short_name": "Scanner",
+      "url": "/scanner",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
