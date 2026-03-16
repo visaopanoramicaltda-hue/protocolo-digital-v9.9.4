@@ -51,7 +51,7 @@ bootstrapApplication(AppComponent, {
     }),
     
     provideServiceWorker('ngsw-worker.js', {
-        enabled: true,
+        enabled: !isDevMode(),
         registrationStrategy: 'registerWhenStable:30000'
     })
   ]
