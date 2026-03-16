@@ -20,6 +20,10 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "manifest.webmanifest",
+                "input": "src"
               }
             ],
             "tsConfig": "tsconfig.json",
