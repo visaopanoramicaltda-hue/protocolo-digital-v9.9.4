@@ -46,7 +46,6 @@ fi
 # -----------------------------------------------------------
 echo "[2/5] Setting up output directory..."
 mkdir -p "$OUTPUT_DIR"
-cp twa-manifest.json "$OUTPUT_DIR/twa-manifest.json"
 cd "$OUTPUT_DIR"
 echo "  ✔ Output directory ready: $OUTPUT_DIR"
 
