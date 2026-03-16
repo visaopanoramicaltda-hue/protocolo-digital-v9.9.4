@@ -55,18 +55,6 @@
   ],
   "dataGroups": [
     {
-      "name": "api-freshness",
-      "urls": [
-        "/api/**"
-      ],
-      "cacheConfig": {
-        "maxSize": 100,
-        "maxAge": "1h",
-        "strategy": "freshness",
-        "timeout": "5s"
-      }
-    },
-    {
       "name": "api-config",
       "urls": [
         "/api/config",
@@ -76,6 +64,18 @@
         "maxSize": 10,
         "maxAge": "6h",
         "strategy": "performance"
+      }
+    },
+    {
+      "name": "api-freshness",
+      "urls": [
+        "/api/**"
+      ],
+      "cacheConfig": {
+        "maxSize": 100,
+        "maxAge": "1h",
+        "strategy": "freshness",
+        "timeout": "5s"
       }
     }
   ]

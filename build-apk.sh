@@ -67,7 +67,7 @@ if [ ! -f "$KEYSTORE_PATH" ]; then
     echo "  ✔ Keystore generated: $KEYSTORE_PATH"
     echo ""
     echo "  ⚠ IMPORTANT: Save this SHA-256 fingerprint for assetlinks.json:"
-    keytool -list -v -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null | grep "SHA256:"
+    keytool -list -v -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null | grep -iE "SHA-?256:"
     echo ""
 else
     echo "  ✔ Keystore found: $KEYSTORE_PATH"
