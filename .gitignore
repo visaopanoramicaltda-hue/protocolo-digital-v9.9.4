@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TWA build output
+twa-output/
+*.apk
+*.keystore
+*.jks

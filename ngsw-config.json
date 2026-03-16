@@ -29,7 +29,7 @@
     },
     {
       "name": "external-assets",
-      "installMode": "prefetch", 
+      "installMode": "prefetch",
       "updateMode": "prefetch",
       "resources": {
         "urls": [
@@ -49,6 +49,32 @@
           "https://tessdata.projectnaptha.com/**",
           "https://www.transparenttextures.com/patterns/**"
         ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "api-config",
+      "urls": [
+        "/api/config",
+        "/api/health"
+      ],
+      "cacheConfig": {
+        "maxSize": 10,
+        "maxAge": "6h",
+        "strategy": "performance"
+      }
+    },
+    {
+      "name": "api-freshness",
+      "urls": [
+        "/api/**"
+      ],
+      "cacheConfig": {
+        "maxSize": 100,
+        "maxAge": "1h",
+        "strategy": "freshness",
+        "timeout": "5s"
       }
     }
   ]
