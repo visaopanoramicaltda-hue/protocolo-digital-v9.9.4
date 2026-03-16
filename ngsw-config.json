@@ -23,13 +23,14 @@
       "updateMode": "prefetch",
       "resources": {
         "files": [
-          "/assets/**"
+          "/assets/**",
+          "/.well-known/**"
         ]
       }
     },
     {
       "name": "external-assets",
-      "installMode": "prefetch", 
+      "installMode": "prefetch",
       "updateMode": "prefetch",
       "resources": {
         "urls": [
@@ -49,6 +50,20 @@
           "https://tessdata.projectnaptha.com/**",
           "https://www.transparenttextures.com/patterns/**"
         ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "api-runtime",
+      "urls": [
+        "/api/**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 50,
+        "maxAge": "1h",
+        "timeout": "5s"
       }
     }
   ]

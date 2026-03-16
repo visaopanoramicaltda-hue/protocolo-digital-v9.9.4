@@ -2,6 +2,7 @@
   "name": "Protocolo Inteligente",
   "short_name": "Protocolo",
   "description": "Aplicativo Protocolo Inteligente - Gestão de Portaria",
+  "id": "/",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
@@ -49,6 +50,22 @@
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Protocolo Inteligente - Gestão de Portaria"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Protocolo Inteligente - Dashboard"
     }
   ]
 }

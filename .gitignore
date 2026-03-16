@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TWA build artifacts
+twa-output/
+android.keystore
+*.apk
+*.aab
