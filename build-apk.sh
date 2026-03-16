@@ -12,8 +12,8 @@
 #   chmod +x build-apk.sh
 #   ./build-apk.sh
 #
-# Environment Variables (optional):
-#   KEYSTORE_PASS  — Keystore password (default: protocolo123)
+# Environment Variables (required):
+#   KEYSTORE_PASS  — Keystore password for signing the APK
 # ==============================================================================
 
 set -euo pipefail
@@ -26,7 +26,7 @@ MANIFEST_URL="https://${HOST}/manifest.webmanifest"
 TWA_DIR="twa-output"
 KEYSTORE_FILE="android.keystore"
 KEYSTORE_ALIAS="protocolo-inteligente"
-KEYSTORE_PASS="${KEYSTORE_PASS:-protocolo123}"
+KEYSTORE_PASS="${KEYSTORE_PASS:-}"
 # ------------------------------------------------------------------------------
 
 echo "============================================"
@@ -65,6 +65,11 @@ echo ""
 
 # 3) Generate signing keystore (if not exists)
 echo "[3/6] Checking signing keystore..."
+if [ -z "${KEYSTORE_PASS}" ]; then
+  echo "ERROR: KEYSTORE_PASS environment variable is required."
+  echo "  Usage: KEYSTORE_PASS=your_strong_password ./build-apk.sh"
+  exit 1
+fi
 if [ ! -f "${KEYSTORE_FILE}" ]; then
   echo "  Generating new keystore: ${KEYSTORE_FILE}"
   keytool -genkeypair \
