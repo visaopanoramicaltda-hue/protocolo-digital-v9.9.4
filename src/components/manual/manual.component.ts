@@ -12,7 +12,7 @@ type ManualTab = 'PORTEIRO' | 'ADMIN' | 'FAQ';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="h-full bg-[#050505] text-[#2a2320] font-serif flex flex-col relative overflow-hidden">
+    <div class="h-[100dvh] bg-[#050505] text-[#2a2320] font-serif flex flex-col relative overflow-hidden">
       <!-- Background Textures -->
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-30 pointer-events-none z-0"></div>
       
@@ -29,15 +29,15 @@ type ManualTab = 'PORTEIRO' | 'ADMIN' | 'FAQ';
       </header>
 
       <!-- Main Content (Paper Style) -->
-      <div class="flex-1 overflow-y-auto p-4 md:p-8 relative z-10 custom-scrollbar safe-area-pb safe-area-pr safe-area-pl">
-        <div class="max-w-6xl mx-auto bg-[#FDFBF7] shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t border-[#d1c4b5] min-h-full relative flex flex-col rounded-sm">
+      <div class="flex-1 overflow-y-scroll p-4 md:p-8 relative z-10 custom-scrollbar safe-area-pb safe-area-pr safe-area-pl">
+        <div class="max-w-6xl mx-auto bg-[#FDFBF7] shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t border-[#d1c4b5] relative flex flex-col rounded-sm">
            <!-- Paper Texture -->
            <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-50 pointer-events-none mix-blend-multiply rounded-sm"></div>
            
            <!-- Internal Header -->
            <div class="relative z-10 p-8 border-b-2 border-[#2a2320] bg-[#EAE0D5] rounded-t-sm">
-              <h2 class="text-3xl font-black text-[#2a2320] uppercase mb-2">Guia Visual de Acesso</h2>
-              <p class="text-sm font-bold text-[#5c4d46] uppercase tracking-widest">Protocolo Inteligente Simbiose</p>
+             <h2 class="text-2xl font-black text-[#2a2320] uppercase mb-2">Guia Visual de Acesso</h2>
+              <p class="text-xs font-bold text-[#5c4d46] uppercase tracking-widest">Protocolo Inteligente Simbiose</p>
               
               <!-- Tabs -->
               <div class="flex mt-8 gap-1 overflow-x-auto pb-2 md:pb-0">
@@ -50,14 +50,14 @@ type ManualTab = 'PORTEIRO' | 'ADMIN' | 'FAQ';
                   </button>
                   @if (auth.currentUser()?.isAdmin) {
                     <button (click)="activeTab.set('ADMIN')" 
-                            class="px-6 py-3 font-black uppercase text-xs tracking-widest border-t-2 border-x-2 border-[#2a2320] transition-all relative top-[2px] whitespace-nowrap"
+                            class="px-4 py-2 font-black uppercase text-[9px] tracking-widest border-t-2 border-x-2 border-[#2a2320] transition-all relative top-[2px] whitespace-nowrap"
                             [class.bg-[#FDFBF7]]="activeTab() === 'ADMIN'"
                             [class.text-[#E86C26]]="activeTab() === 'ADMIN'"
                             [class.bg-[#dcd3cb]]="activeTab() !== 'ADMIN'">
                         Gestor (Síndico)
                     </button>
                     <button (click)="activeTab.set('FAQ')" 
-                            class="px-6 py-3 font-black uppercase text-xs tracking-widest border-t-2 border-x-2 border-[#2a2320] transition-all relative top-[2px] whitespace-nowrap"
+                            class="px-4 py-2 font-black uppercase text-[9px] tracking-widest border-t-2 border-x-2 border-[#2a2320] transition-all relative top-[2px] whitespace-nowrap"
                             [class.bg-[#FDFBF7]]="activeTab() === 'FAQ'"
                             [class.text-[#E86C26]]="activeTab() === 'FAQ'"
                             [class.bg-[#dcd3cb]]="activeTab() !== 'FAQ'">
@@ -73,30 +73,30 @@ type ManualTab = 'PORTEIRO' | 'ADMIN' | 'FAQ';
               <!-- ================= PORTEIRO (VISUAL CARDS) ================= -->
               @if (activeTab() === 'PORTEIRO') {
                 <div class="animate-[fadeIn_0.3s]">
-                  <h3 class="text-xl font-black uppercase mb-8 border-b-2 border-[#E86C26] inline-block pr-4">Fluxo de Chegada (Scanner IA)</h3>
+                  <h3 class="text-lg font-black uppercase mb-8 border-b-2 border-[#E86C26] inline-block pr-4">Fluxo de Chegada (Scanner IA)</h3>
                   
                   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                       <!-- CARD 1 -->
                       <div class="bg-white border-2 border-[#2a2320] p-6 rounded-sm shadow-[5px_5px_0px_rgba(42,35,32,0.1)] hover:shadow-[5px_5px_0px_#E86C26] transition-shadow group h-full flex flex-col">
                           <div class="w-12 h-12 bg-[#2a2320] text-white flex items-center justify-center font-black text-xl rounded-full mb-4 group-hover:bg-[#E86C26] transition-colors">1</div>
-                          <h4 class="font-black uppercase text-lg mb-2">Iniciar Scanner</h4>
-                          <p class="text-sm text-[#5c4d46] flex-1">Clique no botão grande <strong>"NOVA ENCOMENDA"</strong> no painel inicial. Aponte a câmera para a etiqueta de envio.</p>
+                          <h4 class="font-black uppercase text-sm mb-2">Iniciar Scanner</h4>
+                          <p class="text-[10px] text-[#5c4d46] flex-1">Clique no botão grande <strong>"NOVA ENCOMENDA"</strong> no painel inicial. Aponte a câmera para a etiqueta de envio.</p>
                           <div class="mt-4 p-2 bg-[#F2EBE5] border border-[#d1c4b5] text-[10px] font-bold uppercase text-[#E86C26]">Dica: Não tape a etiqueta</div>
                       </div>
 
                       <!-- CARD 2 -->
                       <div class="bg-white border-2 border-[#2a2320] p-6 rounded-sm shadow-[5px_5px_0px_rgba(42,35,32,0.1)] hover:shadow-[5px_5px_0px_#E86C26] transition-shadow group h-full flex flex-col">
                           <div class="w-12 h-12 bg-[#2a2320] text-white flex items-center justify-center font-black text-xl rounded-full mb-4 group-hover:bg-[#E86C26] transition-colors">2</div>
-                          <h4 class="font-black uppercase text-lg mb-2">Conferência Visual</h4>
-                          <p class="text-sm text-[#5c4d46] flex-1">A IA vai ler o nome e o rastreio. Confira se os dados batem. Se a unidade estiver errada, toque no nome para corrigir.</p>
+                          <h4 class="font-black uppercase text-sm mb-2">Conferência Visual</h4>
+                          <p class="text-[10px] text-[#5c4d46] flex-1">A IA vai ler o nome e o rastreio. Confira se os dados batem. Se a unidade estiver errada, toque no nome para corrigir.</p>
                           <div class="mt-4 p-2 bg-[#F2EBE5] border border-[#d1c4b5] text-[10px] font-bold uppercase text-[#E86C26]">Dica: O sistema aprende correções</div>
                       </div>
 
                       <!-- CARD 3 -->
                       <div class="bg-white border-2 border-[#2a2320] p-6 rounded-sm shadow-[5px_5px_0px_rgba(42,35,32,0.1)] hover:shadow-[5px_5px_0px_#E86C26] transition-shadow group h-full flex flex-col">
                           <div class="w-12 h-12 bg-[#2a2320] text-white flex items-center justify-center font-black text-xl rounded-full mb-4 group-hover:bg-[#E86C26] transition-colors">3</div>
-                          <h4 class="font-black uppercase text-lg mb-2">Carimbar & Enviar</h4>
-                          <p class="text-sm text-[#5c4d46] flex-1">Selecione o estado (Intacta/Violada) e clique em <strong>CARIMBAR</strong>. Um botão de WhatsApp aparecerá para enviar o comprovante ao morador.</p>
+                          <h4 class="font-black uppercase text-sm mb-2">Carimbar & Enviar</h4>
+                          <p class="text-[10px] text-[#5c4d46] flex-1">Selecione o estado (Intacta/Violada) e clique em <strong>CARIMBAR</strong>. Um botão de WhatsApp aparecerá para enviar o comprovante ao morador.</p>
                       </div>
                   </div>
 
@@ -215,9 +215,14 @@ type ManualTab = 'PORTEIRO' | 'ADMIN' | 'FAQ';
     </div>
   `,
   styles: [`
-    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #2a2320; border-radius: 4px; }
+    .custom-scrollbar { 
+        scrollbar-gutter: stable;
+        scrollbar-width: thin;
+        scrollbar-color: #2a2320 #e5e5e5;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #e5e5e5; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #2a2320; border-radius: 4px; border: 2px solid #e5e5e5; }
   `]
 })
 export class ManualComponent {

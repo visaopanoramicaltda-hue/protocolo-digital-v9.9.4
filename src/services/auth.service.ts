@@ -1,6 +1,6 @@
 
-import { Injectable, inject, signal, effect, computed, Injector } from '@angular/core';
-import { DbService, Porteiro, AppConfig } from './db.service';
+import { Injectable, inject, signal, effect, computed } from '@angular/core';
+import { DbService, Porteiro } from './db.service';
 import { Router } from '@angular/router';
 import { UiService } from './ui.service';
 import { DataProtectionService } from './data-protection.service';
@@ -64,7 +64,7 @@ export class AuthService {
   isLockedOut = signal(false);
   lockoutTimeRemaining = signal(0);
   shiftTimeRemaining = signal<string>('12:30:00');
-  private shiftInterval: any = null;
+  private shiftInterval: ReturnType<typeof setInterval> | null = null;
   private warningTriggered = false;
 
   licenseToken = signal<string | null>(null);
@@ -297,10 +297,38 @@ export class AuthService {
   }
 
   async completeLogin(user: Porteiro, overridePlan?: string) {
-      const tenantId = user.isDev ? null : (user.condoId || crypto.randomUUID());
+      // PRIORIDADE 1: condoId da configuração global do sistema (mais estável)
+      const globalCondoId = this.db.appConfig().condoId;
+      
+      // PRIORIDADE 2: condoId do próprio usuário
+      let tenantId = user.condoId || globalCondoId;
+
+      if (!user.isDev && !tenantId) {
+          // Tenta encontrar o condoId de um administrador já configurado
+          const admin = this.db.porteiros().find(p => p.isAdmin && p.condoId);
+          tenantId = admin?.condoId || crypto.randomUUID();
+          
+          // Se geramos um novo ID, ancoramos no primeiro admin para que outros herdem
+          if (!admin?.condoId) {
+              const firstAdmin = this.db.porteiros().find(p => p.isAdmin);
+              if (firstAdmin) {
+                  firstAdmin.condoId = tenantId;
+                  await this.db.saveItem('porteiros', firstAdmin);
+              }
+          }
+      }
+
+      // Se o usuário não tinha condoId ou tinha um diferente do global, atualizamos
+      if (globalCondoId && user.condoId !== globalCondoId && !user.isDev) {
+          tenantId = globalCondoId;
+      }
+
       user.condoId = tenantId || undefined;
       
-      this.db.currentTenantId.set(tenantId);
+      // SALVA O USUÁRIO DE VOLTA NO BANCO PARA PERSISTIR O CONDO_ID
+      await this.db.saveItem('porteiros', user);
+      
+      this.db.currentTenantId.set(tenantId || null);
       await this.db.reloadSessionData();
 
       this.currentUser.set(user);
@@ -321,6 +349,7 @@ export class AuthService {
       
       // --- LÓGICA DE HERANÇA DE PLANO ---
       let currentPlan = 'START';
+      let isFirstLogin = false;
       
       if (user.id === 'guest_admin') {
           currentPlan = 'START';
@@ -335,6 +364,7 @@ export class AuthService {
           if (dbConfig.activePlan && dbConfig.activePlan !== 'PENDENTE') {
               currentPlan = dbConfig.activePlan;
           } else {
+              isFirstLogin = true; // First login detected
               currentPlan = overridePlan || 'START';
           }
       }
@@ -366,7 +396,7 @@ export class AuthService {
       let route = ['/dashboard'];
       let queryParams = {};
 
-      if (user.isDev) {
+      if (isFirstLogin) {
           route = ['/admin'];
           queryParams = { tab: 'quantum' };
       } else if (!this.hasActiveFeatureAccess()) {
@@ -467,7 +497,7 @@ export class AuthService {
                           let route = ['/dashboard'];
                           let queryParams = {};
 
-                          if (user.isDev) {
+                          if (user.isDev || user.isAdmin) {
                               route = ['/admin'];
                               queryParams = { tab: 'quantum' };
                           } else if (!this.hasActiveFeatureAccess()) {
@@ -482,7 +512,7 @@ export class AuthService {
               }
           });
 
-      } catch (e) {
+      } catch {
           this.logout();
       }
   }
@@ -492,7 +522,7 @@ export class AuthService {
   }
 
   private recordFailedAttempt() {
-      let attempts = parseInt(localStorage.getItem(this.ATTEMPTS_KEY) || '0') + 1;
+      const attempts = parseInt(localStorage.getItem(this.ATTEMPTS_KEY) || '0') + 1;
       localStorage.setItem(this.ATTEMPTS_KEY, attempts.toString());
       
       if (attempts >= this.MAX_ATTEMPTS) {
@@ -535,82 +565,100 @@ export class AuthService {
       }
 
       try {
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          
-          const publicKeyCredentialCreationOptions = {
-              challenge: challenge,
-              rp: { name: "Simbiose Protocolo", id: window.location.hostname },
-              user: {
-                  id: new TextEncoder().encode(user.id),
-                  name: user.nome,
-                  displayName: user.nome,
-              },
-              pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-              authenticatorSelection: { authenticatorAttachment: "platform" },
-              timeout: 60000,
-              attestation: "direct"
-          };
-
-          const credential = await navigator.credentials.create({
-              publicKey: publicKeyCredentialCreationOptions
-          } as any);
-
-          await this.db.saveItem('user_credentials', {
-              id: user.id,
-              credential: credential
+          // 1. Get registration options from backend
+          const optionsRes = await fetch('/api/auth/generate-registration-options', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.id, userName: user.nome })
           });
+          const options = await optionsRes.json();
 
-          if (user.isAdmin) {
-              this.db.updateAppConfig({ adminFingerprintRegistered: true });
+          // 2. Create credential
+          const credential = await navigator.credentials.create({
+              publicKey: this.preparePublicKeyCredentialCreationOptions(options)
+          } as CredentialCreationOptions) as PublicKeyCredential;
+
+          // 3. Verify registration on backend
+          const verifyRes = await fetch('/api/auth/verify-registration', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.id, response: credential })
+          });
+          const verification = await verifyRes.json();
+
+          if (verification.verified) {
+              user.hasFingerprint = true;
+              this.db.saveItem('porteiros', user);
+              this.ui.show('Digital cadastrada com sucesso!', 'SUCCESS');
+              return true;
           }
-          
-          // Mark user as having fingerprint registered
-          user.hasFingerprint = true;
-          this.db.saveItem('porteiros', user);
-
-          this.ui.show('Digital cadastrada com sucesso!', 'SUCCESS');
-          return true;
+          throw new Error('Falha na verificação do cadastro.');
       } catch (e: any) {
           console.error('Fingerprint registration failed:', e);
-          if (e.name === 'NotAllowedError' || e.message?.includes('publickey-credentials-create')) {
-              this.ui.show('Biometria indisponível nesta pré-visualização. Funcionará no ambiente de produção.', 'WARNING');
-          } else {
-              this.ui.show('Falha ao cadastrar digital.', 'ERROR');
-          }
+          this.ui.show('Falha ao cadastrar digital.', 'ERROR');
           return false;
       }
   }
 
   async loginWithFingerprint(): Promise<{ success: boolean, user?: any, message?: string }> {
       try {
-          const publicKeyCredentialRequestOptions = {
-              challenge: new Uint8Array(32),
-              allowCredentials: [],
-              timeout: 60000,
-              userVerification: "required"
-          };
+          const user = this.currentUser();
+          if (!user) return { success: false, message: 'Usuário não logado.' };
 
+          // 1. Get authentication options from backend
+          const optionsRes = await fetch('/api/auth/generate-authentication-options', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.id })
+          });
+          const options = await optionsRes.json();
+
+          // 2. Get assertion
           const assertion = await navigator.credentials.get({
-              publicKey: publicKeyCredentialRequestOptions
-          } as any);
+              publicKey: this.preparePublicKeyCredentialRequestOptions(options)
+          } as any) as PublicKeyCredential;
 
-          // In a real app, verify the assertion with the server
-          // For now, we simulate success if assertion exists
-          if (assertion) {
-              // Fetch user from DB based on credential ID
-              // This is simplified
-              const users = this.db.porteiros();
-              const user = users[0]; // Simplified
+          // 3. Verify assertion on backend
+          const verifyRes = await fetch('/api/auth/verify-authentication', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.id, response: assertion })
+          });
+          const verification = await verifyRes.json();
+              
+          if (verification.verified) {
               this.ui.show('Login com digital realizado!', 'SUCCESS');
               return { success: true, user };
           }
-          return { success: false, message: 'Falha no login com digital.' };
-      } catch (e) {
+          return { success: false, message: 'Falha na autenticação biométrica.' };
+      } catch (e: any) {
           console.error('Fingerprint login failed:', e);
           this.ui.show('Falha no login com digital.', 'ERROR');
           return { success: false, message: 'Falha no login com digital.' };
       }
+  }
+
+  // Helper methods to prepare options (convert base64 to Uint8Array)
+  private preparePublicKeyCredentialCreationOptions(options: any) {
+      return {
+          ...options,
+          challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
+          user: {
+              ...options.user,
+              id: Uint8Array.from(atob(options.user.id), c => c.charCodeAt(0)),
+          }
+      };
+  }
+
+  private preparePublicKeyCredentialRequestOptions(options: any) {
+      return {
+          ...options,
+          challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
+          allowCredentials: options.allowCredentials.map((cred: any) => ({
+              ...cred,
+              id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+          }))
+      };
   }
 
   private async checkFingerprintEnforcement() {

@@ -1,24 +1,33 @@
-import { Injectable } from '@angular/core';
-import { jsPDF } from 'jspdf';
+import { Injectable, inject } from '@angular/core';
+import { PdfService } from '../pdf.service';
 
 @Injectable({ providedIn: 'root' })
 export class SimbiosePdfService {
+  private pdfService = inject(PdfService);
 
-  gerarComprovante(protocolo: any): Blob {
-    const pdf = new jsPDF();
+  async gerarComprovante(protocolo: any): Promise<Blob> {
+    const colEsq = [
+        { label: 'Tipo', value: protocolo.tipo || '' },
+        { label: 'Destinatário', value: protocolo.destinatario || '' },
+        { label: 'Condição', value: protocolo.condicao || '' }
+    ];
 
-    pdf.setFontSize(14);
-    pdf.text('PROTOCOLO INTELIGENTE — SIMBIOSE', 20, 20);
+    const colDir = [
+        { label: 'Bloco', value: protocolo.bloco || '' },
+        { label: 'Unidade', value: protocolo.unidade || '' },
+        { label: 'Data', value: new Date().toLocaleString() }
+    ];
 
-    pdf.setFontSize(10);
-    pdf.text(`ID: ${protocolo.id || ''}`, 20, 35);
-    pdf.text(`Tipo: ${protocolo.tipo || ''}`, 20, 45);
-    pdf.text(`Destinatário: ${protocolo.destinatario || ''}`, 20, 55);
-    pdf.text(`Bloco: ${protocolo.bloco || ''}`, 20, 65);
-    pdf.text(`Unidade: ${protocolo.unidade || ''}`, 20, 75);
-    pdf.text(`Condição: ${protocolo.condicao || ''}`, 20, 85);
-    pdf.text(`Data: ${new Date().toLocaleString()}`, 20, 95);
+    const result = await this.pdfService.criarPDFModerno(
+        'PROTOCOLO INTELIGENTE',
+        protocolo.id || 'N/A',
+        'Este documento é um comprovante gerado pelo sistema Simbiose.',
+        colEsq,
+        colDir,
+        [],
+        undefined
+    );
 
-    return pdf.output('blob');
+    return result.blob;
   }
 }

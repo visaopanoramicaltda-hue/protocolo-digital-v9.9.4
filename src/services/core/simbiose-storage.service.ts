@@ -40,7 +40,7 @@ export class SimbioseStorageService {
   }
   
   remover(tabela: TabelaSimbiose, id: string): void {
-    let lista = this.listar(tabela).filter((item: any) => item.id !== id);
+    const lista = this.listar(tabela).filter((item: any) => item.id !== id);
     localStorage.setItem(this.getKey(tabela), JSON.stringify(lista));
   }
   

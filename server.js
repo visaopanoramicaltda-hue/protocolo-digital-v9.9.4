@@ -1,29 +1,122 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import WebSocket, { WebSocketServer } from 'ws';
-import http from 'http';
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const WebSocket = require('ws');
+const http = require('http');
 
 // ================================
 // CONFIGURAÇÃO DO SERVIDOR
 // ================================
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos do Angular
-app.use(express.static(path.join(import.meta.dirname, 'dist/browser'), {
-  index: false
-}));
+app.use(express.static(path.join(__dirname, 'dist/browser')));
+
+const fs = require('fs');
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
+
+// ... (configuração existente)
 
 // ================================
-// ROTA RAIZ (TESTE)
+// WEBAUTHN ENDPOINTS (SEGURANÇA)
 // ================================
-app.get('/api/health', (req, res) => {
-  res.send({ status: 'online', service: 'Simbiose Backend (Signaling Only)' });
+const rpName = "Simbiose Protocolo";
+const appUrl = new URL(process.env.APP_URL || 'https://ais-pre-esvlsbtkj5xggs7ic2ocwh-8568421202.us-west2.run.app');
+const rpID = appUrl.hostname;
+const CREDENTIALS_FILE = path.join(__dirname, 'credentials.json');
+
+// Carregar credenciais do arquivo
+let userCredentials = new Map();
+if (fs.existsSync(CREDENTIALS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
+    userCredentials = new Map(Object.entries(data));
+}
+
+function saveCredentials() {
+    fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(Object.fromEntries(userCredentials), null, 2));
+}
+
+const challenges = new Map();
+
+app.post('/api/auth/generate-registration-options', async (req, res) => {
+    const { userId, userName } = req.body;
+    const options = await generateRegistrationOptions({
+        rpName,
+        rpID,
+        userID: userId,
+        userName: userName,
+        attestationType: 'none',
+    });
+    challenges.set(userId, options.challenge);
+    res.json(options);
+});
+
+app.post('/api/auth/verify-registration', async (req, res) => {
+    const { userId, response } = req.body;
+    const expectedChallenge = challenges.get(userId);
+    
+    const verification = await verifyRegistrationResponse({
+        response,
+        expectedChallenge,
+        expectedRPID: rpID,
+        expectedOrigin: process.env.APP_URL || 'https://ais-pre-esvlsbtkj5xggs7ic2ocwh-8568421202.us-west2.run.app',
+    });
+
+    if (verification.verified) {
+        userCredentials.set(userId, verification.registrationInfo);
+        saveCredentials(); // Persiste no arquivo
+        res.json({ verified: true });
+    } else {
+        res.status(400).json({ verified: false });
+    }
+});
+
+app.post('/api/auth/generate-authentication-options', async (req, res) => {
+    const { userId } = req.body;
+    const credential = userCredentials.get(userId);
+    
+    if (!credential) return res.status(404).json({ error: 'Credencial não encontrada' });
+
+    const options = await generateAuthenticationOptions({
+        rpID,
+        allowCredentials: [{
+            id: credential.credentialID,
+            type: 'public-key',
+        }],
+    });
+    challenges.set(userId, options.challenge);
+    res.json(options);
+});
+
+app.post('/api/auth/verify-authentication', async (req, res) => {
+    const { userId, response } = req.body;
+    const expectedChallenge = challenges.get(userId);
+    const credential = userCredentials.get(userId);
+
+    if (!credential) return res.status(404).json({ error: 'Credencial não encontrada' });
+
+    const verification = await verifyAuthenticationResponse({
+        response,
+        expectedChallenge,
+        expectedRPID: rpID,
+        expectedOrigin: process.env.APP_URL || 'https://ais-pre-esvlsbtkj5xggs7ic2ocwh-8568421202.us-west2.run.app',
+        authenticator: {
+            credentialID: credential.credentialID,
+            credentialPublicKey: credential.credentialPublicKey,
+            counter: credential.counter,
+        },
+    });
+
+    if (verification.verified) {
+        res.json({ verified: true });
+    } else {
+        res.status(400).json({ verified: false });
+    }
 });
 
 // ================================
@@ -54,7 +147,7 @@ app.post('/api/check-ip', (req, res) => {
 // WEBSOCKET SIGNALING (QUANTUM NET)
 // ================================
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
@@ -68,19 +161,10 @@ wss.on('connection', (ws, req) => {
 });
 
 // ================================
-// RUNTIME CONFIG API
-// ================================
-app.get('/api/config', (req, res) => {
-  res.json({
-    geminiApiKey: process.env.GEMINI_API_KEY || ''
-  });
-});
-
-// ================================
 // SPA FALLBACK
 // ================================
-app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(import.meta.dirname, 'dist/browser/index.html'));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist/browser/index.html'));
 });
 
 // ================================

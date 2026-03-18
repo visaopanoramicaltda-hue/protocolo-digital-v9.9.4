@@ -3,19 +3,12 @@ import { Store } from '@ngrx/store';
 import { CommandBusService } from './command-bus.service';
 import { loadGreetings, addGreeting } from '../state/greeting.actions';
 
-// Declare test globals to avoid compilation errors when types are missing
-declare const describe: any;
-declare const beforeEach: any;
-declare const it: any;
-declare const expect: any;
-declare const jasmine: any;
-
 describe('CommandBusService (Architectural Facade)', () => {
   let service: CommandBusService;
-  let storeSpy: any;
+  let storeSpy: jasmine.SpyObj<Store<AppState>>;
 
   beforeEach(() => {
-    const spy = jasmine.createSpyObj('Store', ['dispatch']);
+    const spy = jasmine.createSpyObj<Store<AppState>>('Store', ['dispatch']);
     TestBed.configureTestingModule({
       providers: [
         CommandBusService,
@@ -23,7 +16,7 @@ describe('CommandBusService (Architectural Facade)', () => {
       ]
     });
     service = TestBed.inject(CommandBusService);
-    storeSpy = TestBed.inject(Store);
+    storeSpy = TestBed.inject(Store) as jasmine.SpyObj<Store<AppState>>;
   });
 
   it('should dispatch "loadGreetings" action when scope is "greeting" and action is "load"', () => {
@@ -46,7 +39,7 @@ describe('CommandBusService (Architectural Facade)', () => {
   });
 
   it('should throw error for unknown scope to prevent side effects leaks', () => {
-    expect(() => service.dispatch({ scope: 'unknown' as any, action: 'test' }))
+    expect(() => service.dispatch({ scope: 'unknown' as unknown as CommandScope, action: 'test' }))
       .toThrowError(/Escopo desconhecido/);
   });
 

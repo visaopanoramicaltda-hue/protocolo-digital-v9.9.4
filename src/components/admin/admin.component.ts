@@ -2,7 +2,7 @@
 import { Component, inject, signal, computed, effect, ViewChild, ElementRef, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DbService, Porteiro, Morador, AppConfig, Encomenda, SystemLog, InboxMessage, LinkedCondo } from '../../services/db.service';
+import { DbService, Porteiro, Morador, AppConfig, InboxMessage, LinkedCondo } from '../../services/db.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 import { GoogleDriveService } from '../../services/google-drive.service';
@@ -11,7 +11,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { GeminiService } from '../../services/gemini.service';
 import { PdfService } from '../../services/pdf.service';
 import { SimbiosePolicyEngine, FuncaoUsuario, AcaoSistema } from '../../services/core/simbiose-policy.service';
-import { SimbioseOfflineQueue, FilaItem } from '../../services/core/simbiose-offline-queue.service';
+import { SimbioseOfflineQueue } from '../../services/core/simbiose-offline-queue.service';
 import { SimbioseSyncService } from '../../services/core/simbiose-sync.service';
 import { BenchmarkService } from '../../services/benchmark.service';
 import { QuantumNetService } from '../../services/core/quantum-net.service';
@@ -20,7 +20,7 @@ import { SimbioseHashService } from '../../services/core/simbiose-hash.service';
 import { QuantumNetComponent } from '../quantum-net/quantum-net.component';
 import { DeepSeekService } from '../../services/deep-seek.service'; 
 import { DeviceContactService } from '../../services/device-contact.service';
-import { jsPDF } from 'jspdf';
+
 
 type Tab = 'dashboard' | 'porteiros' | 'moradores' | 'transportadoras' | 'encomendas' | 'correspondencias' | 'relatorios' | 'logs' | 'sistema' | 'backup' | 'suporte' | 'termos' | 'quantum' | 'deepseek' | 'inbox' | 'network' | 'planos' | 'clientes'; 
 type SettingsSubTab = 'ENGINE' | 'POLICY' | 'QUEUE';
@@ -189,13 +189,15 @@ export class AdminHubComponent implements OnInit, OnDestroy {
   logFilterAction = signal('TODOS');
 
   showSecurityModal = signal(false);
+  showDeleteAllModal = signal(false);
+  deleteAllPassword = signal('');
   porteiroToDeleteId: string | null = null;
   showAdminTermsModal = signal(false);
   showMemoryModal = signal(false);
 
   // DATA LOCALIZADA (pt-BR)
   formattedDatePTBR = signal('');
-  private clockInterval: any;
+  private clockInterval: NodeJS.Timeout | number | null = null;
   hasVaultBackup = signal(false);
   scannedPackagesLastHour = signal(0);
   
@@ -246,6 +248,12 @@ export class AdminHubComponent implements OnInit, OnDestroy {
           return user.condoId === this.db.appConfig().condoId;
       }
       return false;
+  });
+
+  canAccessBackup = computed(() => {
+      const user = this.auth.currentUser();
+      if (!user) return false;
+      return true; // Liberado para todos conforme solicitado
   });
   
   activePorteirosCount = computed(() => {
@@ -358,7 +366,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
     });
 
     if (this.isAssistedMode()) {
-        const assistedMenuIds: Tab[] = ['dashboard', 'moradores', 'relatorios', 'suporte'];
+        const assistedMenuIds: Tab[] = ['dashboard', 'moradores', 'relatorios', 'suporte', 'backup'];
         return filteredItems.filter(item => assistedMenuIds.includes(item.id));
     }
     if (this.isDevMode()) {
@@ -429,8 +437,8 @@ export class AdminHubComponent implements OnInit, OnDestroy {
   }
 
   // --- ANTI-AUTOFILL HELPER ---
-  removeReadonly(event: any) {
-    event.target.removeAttribute('readonly');
+  removeReadonly(event: Event) {
+    (event.target as HTMLElement).removeAttribute('readonly');
   }
   
   goBackToDashboard() {
@@ -456,7 +464,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
           });
           const raw = formatter.format(now);
           this.formattedDatePTBR.set(raw.charAt(0).toUpperCase() + raw.slice(1));
-      } catch (e) {
+      } catch {
           this.formattedDatePTBR.set(new Date().toLocaleDateString('pt-BR'));
       }
   }
@@ -723,8 +731,27 @@ export class AdminHubComponent implements OnInit, OnDestroy {
   confirmDeletePorteiro() { if(this.porteiroToDeleteId) { this.db.deletePorteiro(this.porteiroToDeleteId, 'Admin'); this.closeSecurityModal(); this.ui.show('Removido.', 'SUCCESS'); } }
   
   moradorToDeleteId: string | null = null;
-  initDeleteMorador(id: string) { this.moradorToDeleteId = id; this.showSecurityModal.set(true); }
-  confirmDeleteMorador() { if(this.moradorToDeleteId) { this.db.deleteMorador(this.moradorToDeleteId); this.closeSecurityModal(); this.ui.show('Morador removido.', 'SUCCESS'); } }
+  moradorDeletePassword = signal('');
+  initDeleteMorador(id: string) { 
+      this.moradorToDeleteId = id; 
+      this.moradorDeletePassword.set('');
+      this.showSecurityModal.set(true); 
+  }
+  async confirmDeleteMorador() { 
+      if(this.moradorToDeleteId) { 
+          const currentUser = this.auth.currentUser();
+          const pwd = this.moradorDeletePassword();
+          const hashedInput = await this.hashService.hashText(pwd);
+          if (currentUser && (hashedInput === currentUser.senha || (currentUser.id === 'guest_admin' && pwd === '000000'))) {
+              this.db.deleteMorador(this.moradorToDeleteId); 
+              this.db.logAction('DELETE', `Morador excluído: ${this.moradorToDeleteId}`, currentUser.id, currentUser.nome);
+              this.closeSecurityModal(); 
+              this.ui.show('Morador removido.', 'SUCCESS'); 
+          } else {
+              this.ui.show('Senha incorreta.', 'ERROR');
+          }
+      } 
+  }
   
   confirmDelete() {
       if (this.porteiroToDeleteId) this.confirmDeletePorteiro();
@@ -829,6 +856,48 @@ export class AdminHubComponent implements OnInit, OnDestroy {
           
           this.moradorModalTelefone.set(contact.tel);
           this.ui.show(`Contato importado: ${contact.name}`, 'SUCCESS');
+      }
+  }
+
+  onPasteMorador(event: ClipboardEvent) {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+      
+      const pastedText = clipboardData.getData('text');
+      if (!pastedText) return;
+
+      const lowerText = pastedText.toLowerCase();
+      const isFormatMatch = lowerText.includes('destinatário:') || lowerText.includes('bloco:') || lowerText.includes('apartamento:');
+      
+      if (isFormatMatch) {
+          event.preventDefault(); // Impede a colagem normal
+          
+          const lines = pastedText.split('\n').map(l => l.trim()).filter(l => l);
+          
+          let nome = '';
+          let bloco = '';
+          let apto = '';
+          let telefone = '';
+          
+          lines.forEach(line => {
+              const lowerLine = line.toLowerCase();
+              if (lowerLine.startsWith('destinatário:')) {
+                  nome = line.substring('destinatário:'.length).trim().toUpperCase();
+              } else if (lowerLine.startsWith('bloco:')) {
+                  bloco = line.substring('bloco:'.length).trim().toUpperCase();
+              } else if (lowerLine.startsWith('apartamento:')) {
+                  apto = line.substring('apartamento:'.length).trim().toUpperCase();
+              } else if (/^\d+$/.test(line.replace(/\D/g, '')) && line.replace(/\D/g, '').length >= 10) {
+                  telefone = line.replace(/\D/g, '');
+              }
+          });
+          
+          if (nome) this.moradorModalName.set(nome);
+          if (bloco) this.moradorModalBloco.set(bloco);
+          if (apto) this.moradorModalApto.set(apto);
+          if (telefone) this.moradorModalTelefone.set(telefone);
+          
+          this.ui.show('Dados preenchidos a partir do texto colado!', 'SUCCESS');
       }
   }
 
@@ -950,7 +1019,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
   private editDistance(s1: string, s2: string): number {
       s1 = s1.toLowerCase();
       s2 = s2.toLowerCase();
-      const costs = new Array();
+      const costs = [];
       for (let i = 0; i <= s1.length; i++) {
           let lastValue = i;
           for (let j = 0; j <= s2.length; j++) {
@@ -1002,36 +1071,131 @@ export class AdminHubComponent implements OnInit, OnDestroy {
       this.ui.show('Exportação concluída.', 'SUCCESS');
   }
 
-  handleCsvImport(e: any) {
-      const file = e.target.files[0];
+  deleteAllMoradores() {
+      this.deleteAllPassword.set('');
+      this.showDeleteAllModal.set(true);
+  }
+
+  closeDeleteAllModal() {
+      this.showDeleteAllModal.set(false);
+      this.deleteAllPassword.set('');
+  }
+
+  async confirmDeleteAllMoradores() {
+      const currentUser = this.auth.currentUser();
+      if (!currentUser || !currentUser.isAdmin) {
+          this.ui.show('Acesso negado.', 'ERROR');
+          return;
+      }
+      
+      const pwd = this.deleteAllPassword();
+      if (!pwd) {
+          this.ui.show('Digite a senha para confirmar.', 'WARNING');
+          return;
+      }
+      
+      const hashedPwd = await this.hashService.hashText(pwd);
+      
+      if (hashedPwd === currentUser.senha || (currentUser.id === 'guest_admin' && pwd === '000000')) {
+          this.ui.show('Excluindo todos os moradores...', 'INFO');
+          const all = this.db.moradores();
+          for (const m of all) {
+              await this.db.deleteMorador(m.id);
+          }
+          this.ui.show('Todos os moradores foram excluídos com sucesso.', 'SUCCESS');
+          this.triggerSmartBackup();
+          this.closeDeleteAllModal();
+      } else {
+          this.ui.show('Senha incorreta. Ação cancelada.', 'ERROR');
+          this.closeDeleteAllModal();
+      }
+  }
+
+  handleCsvImport(e: Event) {
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async (event) => {
           const text = (event.target?.result as string) || '';
-          const lines = text.split('\n');
           let count = 0;
           
-          const firstLine = lines[0] || '';
-          const separator = firstLine.includes(';') ? ';' : ',';
-
-          for (let i = 1; i < lines.length; i++) {
-              const line = lines[i].trim();
-              if (!line) continue;
+          // Verifica se é o formato de texto em bloco (ex: Destinatário: Jão Silva Sauro)
+          if (text.toLowerCase().includes('destinatário:')) {
+              const regex = /destinatário:\s*(.*)/gi;
+              let match;
+              let lastIndex = 0;
+              const blocks = [];
               
-              const cols = line.split(separator).map(c => c.replace(/^"|"$/g, '').trim());
+              while ((match = regex.exec(text)) !== null) {
+                  if (lastIndex !== 0) {
+                      blocks[blocks.length - 1].content = text.substring(lastIndex, match.index);
+                  }
+                  blocks.push({
+                      nome: match[1].trim(),
+                      content: ''
+                  });
+                  lastIndex = regex.lastIndex;
+              }
+              if (blocks.length > 0) {
+                  blocks[blocks.length - 1].content = text.substring(lastIndex);
+              }
               
-              if (cols.length >= 3) {
-                  const m: Morador = {
-                      id: crypto.randomUUID(),
-                      nome: cols[0].toUpperCase(),
-                      bloco: cols[1].toUpperCase(),
-                      apto: cols[2].toUpperCase(),
-                      telefone: cols[3] || '',
-                      isPrincipal: cols[4] ? cols[4].toUpperCase() === 'SIM' : false
-                  };
-                  if (m.nome && m.bloco && m.apto) {
+              for (const block of blocks) {
+                  const lines = block.content.split('\n').map(l => l.trim()).filter(l => l);
+                  let bloco = '';
+                  let apto = '';
+                  let telefone = '';
+                  
+                  lines.forEach(line => {
+                      const lowerLine = line.toLowerCase();
+                      if (lowerLine.startsWith('bloco:')) {
+                          bloco = line.substring('bloco:'.length).trim().toUpperCase();
+                      } else if (lowerLine.startsWith('apartamento:')) {
+                          apto = line.substring('apartamento:'.length).trim().toUpperCase();
+                      } else if (/^\d+$/.test(line.replace(/\D/g, '')) && line.replace(/\D/g, '').length >= 10) {
+                          telefone = line.replace(/\D/g, '');
+                      }
+                  });
+                  
+                  if (block.nome && bloco && apto) {
+                      const m: Morador = {
+                          id: crypto.randomUUID(),
+                          nome: block.nome.toUpperCase(),
+                          bloco: bloco,
+                          apto: apto,
+                          telefone: telefone,
+                          isPrincipal: false
+                      };
                       await this.db.addMorador(m);
                       count++;
+                  }
+              }
+          } else {
+              // Lógica CSV original
+              const lines = text.split('\n');
+              const firstLine = lines[0] || '';
+              const separator = firstLine.includes(';') ? ';' : ',';
+
+              for (let i = 1; i < lines.length; i++) {
+                  const line = lines[i].trim();
+                  if (!line) continue;
+                  
+                  const cols = line.split(separator).map(c => c.replace(/^"|"$/g, '').trim());
+                  
+                  if (cols.length >= 3) {
+                      const m: Morador = {
+                          id: crypto.randomUUID(),
+                          nome: cols[0].toUpperCase(),
+                          bloco: cols[1].toUpperCase(),
+                          apto: cols[2].toUpperCase(),
+                          telefone: cols[3] || '',
+                          isPrincipal: cols[4] ? cols[4].toUpperCase() === 'SIM' : false
+                      };
+                      if (m.nome && m.bloco && m.apto) {
+                          await this.db.addMorador(m);
+                          count++;
+                      }
                   }
               }
           }
@@ -1039,7 +1203,6 @@ export class AdminHubComponent implements OnInit, OnDestroy {
           this.ui.show(`${count} moradores importados com sucesso!`, 'SUCCESS');
           
           if (count > 0) {
-              console.log('[Admin] Importação CSV concluída. Acionando Backup Mestre (Sobrescrita)...');
               this.ui.show('Atualizando registro mestre...', 'INFO');
               this.triggerSmartBackup();
           }
@@ -1131,7 +1294,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
   });
   
   filteredEncomendas = computed(() => {
-      let list = this.db.encomendas();
+      const list = this.db.encomendas();
       return list.slice(0, 50); 
   });
   downloadEncomendasCSV() {}
@@ -1141,7 +1304,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
       this.encomendaFilterStartDate.set('');
       this.encomendaFilterEndDate.set('');
   }
-  adminCancelEncomenda(id: string) {}
+  adminCancelEncomenda() {}
 
   filteredCorrespondencias = computed(() => []);
   downloadCorrespondenciasCSV() {}
@@ -1223,7 +1386,7 @@ export class AdminHubComponent implements OnInit, OnDestroy {
       }
   }
   
-  uploadAndRestoreManual(e: any) {
+  uploadAndRestoreManual(e: Event) {
       if (this.auth.isGuestSession()) {
           this.ui.show('ACESSO NEGADO: Restauração bloqueada para usuário padrão.', 'ERROR');
           this.ui.playTone('ERROR');
@@ -1231,7 +1394,8 @@ export class AdminHubComponent implements OnInit, OnDestroy {
           return;
       }
 
-      const file = e.target.files[0];
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
 
       if (file) {
           this.isRestoring.set(true);
@@ -1358,9 +1522,9 @@ export class AdminHubComponent implements OnInit, OnDestroy {
       
       this.ui.show('Gerando PDF...', 'INFO');
       try {
-          const { url } = await this.pdf.generateDailyOperationalReport(msg.metadata, msg.metadata.dateStr || 'N/A');
+          const { url } = await this.pdf.generateDailyOperationalReport(msg.metadata as any, (msg.metadata as any).dateStr || 'N/A');
           window.open(url, '_blank');
-      } catch (e) {
+      } catch {
           this.ui.show('Erro ao gerar PDF.', 'ERROR');
       }
   }

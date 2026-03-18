@@ -1,0 +1,6 @@
+{
+	"appId": "com.seuusuario.simbiose",
+	"appName": "Protocolo Inteligente",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}

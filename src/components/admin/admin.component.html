@@ -148,7 +148,7 @@
               @placeholder { <div class="p-10 text-center animate-pulse">Carregando Auditoria...</div> }
           }
           @case ('sistema') { @if (canAccessAdminSettings()) { <ng-container *ngTemplateOutlet="configTab"></ng-container> } @else { <div class="p-10 text-center text-red-500 font-bold">Acesso Negado</div> } }
-          @case ('backup') { @if (canAccessAdminSettings()) { <ng-container *ngTemplateOutlet="backupTab"></ng-container> } @else { <div class="p-10 text-center text-red-500 font-bold">Acesso Negado</div> } }
+          @case ('backup') { @if (canAccessBackup()) { <ng-container *ngTemplateOutlet="backupTab"></ng-container> } @else { <div class="p-10 text-center text-red-500 font-bold">Acesso Negado</div> } }
           @case ('quantum') { 
               @defer (on viewport) { <ng-container *ngTemplateOutlet="quantumTab"></ng-container> }
               @placeholder { <div class="p-10 text-center animate-pulse text-[#E86C26]">Sincronizando Quantum Net...</div> }
@@ -567,6 +567,11 @@
                 <p class="text-xs text-gray-500 mt-1">{{ db.moradores().length }} unidades cadastradas.</p>
             </div>
             <div class="flex gap-2">
+                @if (auth.currentUser()?.isAdmin) {
+                    <button (click)="deleteAllMoradores()" class="px-2 py-2 bg-red-900/30 text-red-500 font-bold uppercase text-[7px] tracking-widest rounded hover:bg-red-900 hover:text-white transition-colors border border-red-900/50" title="Excluir Todos os Moradores">
+                        🗑️ Todos
+                    </button>
+                }
                 <button (click)="exportCsv()" class="px-2 py-2 bg-[#1a1a1a] text-gray-300 font-bold uppercase text-[7px] tracking-widest rounded hover:bg-white hover:text-black transition-colors border border-gray-700">
                     Exp.
                 </button>
@@ -1117,7 +1122,7 @@
                 <div>
                     <label class="block text-[10px] font-bold text-gray-600 uppercase mb-1">Nome do Morador</label>
                     <div class="flex gap-2">
-                        <input [ngModel]="moradorModalName()" (ngModelChange)="moradorModalName.set($event)" type="text" class="flex-1 bg-white/50 border border-gray-300 p-3 text-black rounded outline-none focus:border-blue-500 uppercase font-bold">
+                        <input [ngModel]="moradorModalName()" (ngModelChange)="moradorModalName.set($event)" (paste)="onPasteMorador($event)" type="text" class="flex-1 bg-white/50 border border-gray-300 p-3 text-black rounded outline-none focus:border-blue-500 uppercase font-bold">
                         <button (click)="importContactFromDevice()" class="px-1 bg-white/50 border border-gray-300 text-black rounded hover:bg-white/70" title="Importar da Agenda"><span class="text-[0.88em]">📒</span></button>
                     </div>
                 </div>
@@ -1179,9 +1184,37 @@
             <h3 class="text-xl font-black text-red-500 uppercase mb-2">Zona de Perigo</h3>
             <p class="text-sm text-gray-300 mb-6">Você está prestes a excluir um registro permanentemente. Esta ação não pode ser desfeita.</p>
             
+            @if(moradorToDeleteId) {
+                <div class="mb-6 text-left">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sua Senha</label>
+                    <input [ngModel]="moradorDeletePassword()" (ngModelChange)="moradorDeletePassword.set($event)" type="password" placeholder="Digite sua senha" class="w-full bg-black/50 border border-red-500/50 p-3 text-white rounded outline-none focus:border-red-500 text-center tracking-widest">
+                </div>
+            }
+
             <div class="flex gap-3">
                 <button (click)="closeSecurityModal()" class="flex-1 py-3 border border-red-500/30 text-red-200 font-bold uppercase text-xs rounded hover:bg-red-500/10">Cancelar</button>
                 <button (click)="confirmDelete()" class="flex-1 py-3 bg-red-600 text-white font-black uppercase text-xs rounded hover:bg-red-700 shadow-lg">Confirmar Exclusão</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: DELETE ALL MORADORES -->
+@if (showDeleteAllModal()) {
+    <div class="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center p-4 animate-pulse-fast">
+        <div class="bg-red-900/20 border-2 border-red-600 p-8 rounded-xl max-w-sm w-full text-center shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+            <div class="text-4xl mb-4">⚠️</div>
+            <h3 class="text-xl font-black text-red-500 uppercase mb-2">Excluir TODOS os Moradores</h3>
+            <p class="text-sm text-gray-300 mb-4">Esta ação apagará TODOS os registros de moradores e NÃO pode ser desfeita.</p>
+            
+            <div class="mb-6 text-left">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Senha de Administrador</label>
+                <input [ngModel]="deleteAllPassword()" (ngModelChange)="deleteAllPassword.set($event)" type="password" placeholder="Digite sua senha" class="w-full bg-black/50 border border-red-500/50 p-3 text-white rounded outline-none focus:border-red-500 text-center tracking-widest">
+            </div>
+            
+            <div class="flex gap-3">
+                <button (click)="closeDeleteAllModal()" class="flex-1 py-3 border border-red-500/30 text-red-200 font-bold uppercase text-xs rounded hover:bg-red-500/10">Cancelar</button>
+                <button (click)="confirmDeleteAllMoradores()" class="flex-1 py-3 bg-red-600 text-white font-black uppercase text-xs rounded hover:bg-red-700 shadow-lg">Confirmar</button>
             </div>
         </div>
     </div>

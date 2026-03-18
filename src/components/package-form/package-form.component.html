@@ -1,21 +1,27 @@
 <div class="flex flex-col h-screen w-full bg-[#FDFBF7] text-[#2a2320] font-serif relative animate-fadeIn text-90percent overflow-hidden">
   
-  <!-- Base Texture: Cream Paper + Wood Grain Hint -->
-  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-80 pointer-events-none z-0 mix-blend-multiply"></div>
-  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-5 pointer-events-none z-0"></div>
+  <!-- Base Texture: Leather -->
+  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-40 pointer-events-none z-0 mix-blend-multiply"></div>
+  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-30 pointer-events-none z-0 mix-blend-multiply"></div>
+
+  <!-- PROGRESS BAR -->
+  <div class="w-full bg-[#d1c4b5] h-2 mb-2">
+      <div class="bg-[#E86C26] h-full transition-all duration-500" [style.width.%]="calculateProgress()"></div>
+  </div>
 
   <!-- HEADER (LEATHER STRIP STYLE) -->
-  <div class="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b-4 border-[#2a2320] bg-[#EAE0D5] shadow-md">
-    <button (click)="goBack()" class="px-4 py-2 text-[#2a2320] hover:text-[#E86C26] transition-colors font-bold uppercase text-sm tracking-widest flex items-center gap-2 border border-transparent hover:border-[#2a2320] rounded-md">
+  <div class="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b-4 border-[#2a2320] bg-[#EAE0D5] shadow-md relative">
+    <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-50 pointer-events-none z-0 mix-blend-multiply"></div>
+    <button (click)="goBack()" class="relative z-10 px-4 py-2 text-[#2a2320] hover:text-[#E86C26] transition-colors font-bold uppercase text-sm tracking-widest flex items-center gap-2 border border-transparent hover:border-[#2a2320] rounded-md">
       <span class="text-2xl leading-none -mt-1">←</span>
     </button>
     
-    <h1 class="text-sm font-black uppercase tracking-[0.1em] text-center flex-1 py-1 mx-2 text-[#2a2320]">
+    <h1 class="relative z-10 text-sm font-black uppercase tracking-[0.1em] text-center flex-1 py-1 mx-2 text-[#2a2320]">
       {{ isEditMode() || isPublicView() ? 'REGISTRO #00' : (isCorrespondenceMode() ? 'CORRESPONDÊNCIA' : 'ENCOMENDA') }}
     </h1>
     
     <!-- STATS (PAPER BADGES) -->
-    <div class="flex flex-col items-end gap-1 min-w-[80px]">
+    <div class="relative z-10 flex flex-col items-end gap-1 min-w-[80px]">
         @if (ocrConfidences().overall > 0) {
             <div class="flex items-center gap-1 bg-white border border-[#2a2320] text-[#2a2320] px-2 py-1 shadow-sm text-10px font-bold uppercase tracking-wider rounded-md">
                 <span>IA</span>
@@ -34,7 +40,8 @@
   </div>
 
   <!-- FORM CONTENT (INK ON PAPER) -->
-  <div #shareableCard class="relative z-10 flex-grow p-4 flex flex-col items-center justify-start gap-4 overflow-y-auto">
+  <div #shareableCard class="relative z-10 flex-grow flex flex-col overflow-y-auto">
+    <div class="flex flex-col items-center justify-start gap-4 p-4 w-full">
 
     <!-- PHOTO (POLAROID STYLE) -->
     <div class="w-full flex flex-col items-center gap-1 shrink-0">
@@ -124,8 +131,21 @@
         <!-- DESTINATÁRIO -->
         <div class="relative">
             <label class="block text-xs font-bold text-[#5c4d46] uppercase mb-2 tracking-widest ml-1">Destinatário</label>
+            
+            @if (showInlineDestinatarioSuggestions() && inlineDestinatarioSuggestions().length > 0) {
+                <div class="absolute w-full top-[100%] mt-1 bg-white border border-[#2a2320] shadow-xl z-50 rounded-b-sm overflow-hidden max-h-48 overflow-y-auto">
+                    @for (resident of inlineDestinatarioSuggestions(); track resident.id) {
+                        <button (mousedown)="selectInlineDestinatario(resident)" class="w-full text-left p-3 hover:bg-[#E86C26] hover:text-white border-b border-[#eee] last:border-0 transition-colors group">
+                            <div class="text-sm font-black uppercase text-[#2a2320] group-hover:text-white">{{ resident.nome }}</div>
+                            <div class="text-[10px] font-bold uppercase text-[#5c4d46] group-hover:text-white/80 mt-0.5">BL {{ resident.bloco }} - AP {{ resident.apto }}</div>
+                        </button>
+                    }
+                </div>
+            }
+
             <input [ngModel]="packageData().destinatarioNome" 
-                   (ngModelChange)="updateModel('destinatarioNome', $event)"
+                   (ngModelChange)="onDestinatarioInput($event)"
+                   (blur)="onDestinatarioBlur()"
                    [disabled]="isReadOnly() || isTriagemSigning()"
                    name="destinatario_safe"
                    autocomplete="off"
@@ -223,22 +243,23 @@
             </div>
         </div>
     </div>
-  </div>
+    </div>
 
-  <!-- FOOTER (INK ON PAPER) -->
-  <div class="sticky bottom-0 shrink-0 p-4 pb-16 bg-[#EAE0D5] border-t-4 border-[#2a2320] flex gap-4 z-50">
-    <button type="button" 
-            (click)="showCancelModal.set(true)" 
-            [disabled]="packageData().status === 'ENTREGUE' || packageData().status === 'CANCELADA'" 
-            class="flex-1 py-4 text-0_8rem font-black uppercase text-[#2a2320] border-2 border-[#2a2320] rounded-md hover:bg-[#d1c4b5] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-      Cancelar
-    </button>
-    <button type="button" 
-            (click)="saveNew()" 
-            [disabled]="isEditMode()" 
-            class="flex-1 py-4 text-0_8rem font-black uppercase text-white bg-[#2a2320] rounded-md hover:bg-[#E86C26] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-      Carimbar
-    </button>
+    <!-- FOOTER (INK ON PAPER) -->
+    <div class="mt-auto shrink-0 p-4 pb-16 bg-[#EAE0D5] border-t-4 border-[#2a2320] flex gap-4 z-50 w-full">
+      <button type="button" 
+              (click)="showCancelModal.set(true)" 
+              [disabled]="packageData().status === 'ENTREGUE' || packageData().status === 'CANCELADA'" 
+              class="flex-1 py-4 text-0_8rem font-black uppercase text-[#2a2320] border-2 border-[#2a2320] rounded-md hover:bg-[#d1c4b5] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+        Cancelar
+      </button>
+      <button type="button" 
+              (click)="saveNew()" 
+              [disabled]="isEditMode()" 
+              class="flex-1 py-4 text-0_8rem font-black uppercase text-white bg-[#2a2320] rounded-md hover:bg-[#E86C26] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+        Carimbar
+      </button>
+    </div>
   </div>
 </div>
 
@@ -306,6 +327,29 @@
                     </button>
                 }
             </div>
+        </div>
+    </div>
+}
+
+<!-- DESTINATÁRIO MANUAL SELECTION MODAL -->
+@if (showDestinatarioManualModal()) {
+    <div class="fixed inset-0 z-[9000] bg-black/90 flex items-center justify-center p-4 animate-fadeIn backdrop-blur-sm">
+        <div class="bg-[#FDFBF7] border-4 border-[#2a2320] p-6 w-full max-w-sm shadow-2xl relative rounded-sm max-h-[80vh] flex flex-col">
+            <h3 class="text-xl font-black text-[#2a2320] uppercase mb-2 text-center tracking-widest">Selecione o Morador</h3>
+            <p class="text-xs text-[#5c4d46] mb-4 text-center font-bold uppercase">Múltiplos moradores encontrados para a unidade {{ packageData().bloco }}-{{ packageData().apto }}</p>
+            
+            <div class="overflow-y-auto custom-scrollbar flex-1 space-y-2">
+                @for (morador of relatedResidents(); track morador.id) {
+                    <button (click)="selectManualResident(morador)" class="w-full text-left p-4 border-2 border-[#d1c4b5] bg-white hover:border-[#E86C26] hover:bg-[#FDFBF7] transition-all rounded-sm shadow-sm group">
+                        <div class="font-black text-[#2a2320] uppercase text-sm group-hover:text-[#E86C26] transition-colors">{{ morador.nome }}</div>
+                        <div class="text-10px font-bold text-[#5c4d46] uppercase mt-1">BL {{ morador.bloco }} - AP {{ morador.apto }}</div>
+                    </button>
+                }
+            </div>
+            
+            <button (click)="closeDestinatarioManualModal()" class="mt-4 w-full py-3 border border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs hover:bg-[#2a2320] hover:text-white transition-colors rounded-sm">
+                Cancelar
+            </button>
         </div>
     </div>
 }

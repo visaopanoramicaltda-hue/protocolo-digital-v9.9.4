@@ -38,8 +38,9 @@
         <!-- Base Gradient (Lighter Brown) -->
         <div class="absolute inset-0 bg-gradient-to-br from-[#6b4235] via-[#3e2318] to-[#1a0b06] opacity-100"></div>
 
-        <!-- Leather Grain Texture Overlay -->
-        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-25 mix-blend-overlay pointer-events-none filter contrast-125"></div>
+        <!-- Leather Grain Texture Overlay (Enhanced Realism) -->
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-60 mix-blend-overlay pointer-events-none filter contrast-150"></div>
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-20 mix-blend-multiply pointer-events-none"></div>
         
         <!-- Realistic Stitching -->
         <div class="absolute inset-2 md:inset-3 border border-dashed border-[#8a6a5c]/50 rounded-[20px] pointer-events-none box-border shadow-[0_1px_1px_rgba(0,0,0,0.3)]"></div>
@@ -86,25 +87,23 @@
                  [class.scale-110]="isBookOpen()"
                  [class.pointer-events-none]="isBookOpen()">
                 
-                <!-- GOLD FOIL LOGO -->
-                <div class="text-center mb-8">
-                    <h1 class="font-serif font-black uppercase leading-none text-center">
-                        <span class="block mb-2 tracking-[0.2em] text-xl md:text-2xl text-transparent bg-clip-text bg-gradient-to-b from-[#f2e6bf] via-[#d4af37] to-[#aa8c2c] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-                            Protocolo
-                        </span>
-                        <span class="block text-3xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-b from-[#f2e6bf] via-[#d4af37] to-[#aa8c2c] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-                            Inteligente
-                        </span>
+                <div class="text-center px-6 flex flex-col items-center justify-center opacity-[0.85]">
+                    <h1 class="font-serif font-bold text-xl md:text-2xl uppercase tracking-[0.3em] mb-1"
+                        style="background: linear-gradient(to bottom, rgba(249,242,149,0.9) 0%, rgba(224,170,62,0.95) 40%, rgba(100,60,10,0.9) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px -1px 1px rgba(0,0,0,1)) drop-shadow(0px 1px 1px rgba(255,255,255,0.15)) drop-shadow(0px 2px 4px rgba(0,0,0,0.8));">
+                        PROTOCOLO
                     </h1>
-                    <div class="w-16 h-1 bg-[#d4af37] mx-auto mt-4 rounded-full shadow-lg opacity-90"></div>
-                </div>
-
-                <!-- TAP INSTRUCTION -->
-                <div class="mt-12 animate-pulse flex flex-col items-center gap-2">
-                    <div class="w-12 h-12 rounded-full border-2 border-[#d4af37]/40 flex items-center justify-center bg-[#d4af37]/5">
-                        <svg class="w-6 h-6 text-[#d4af37]" fill="currentColor" viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.02-.24-.02-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.43 1.06.43h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></svg>
-                    </div>
-                    <span class="text-[#d4af37] text-[10px] font-bold uppercase tracking-[0.3em] drop-shadow-sm">Toque para Abrir</span>
+                    <h2 class="font-serif font-black text-3xl md:text-4xl uppercase tracking-[0.1em] mb-4"
+                        style="background: linear-gradient(to bottom, rgba(249,242,149,0.9) 0%, rgba(224,170,62,0.95) 40%, rgba(100,60,10,0.9) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px -1px 1px rgba(0,0,0,1)) drop-shadow(0px 1px 1px rgba(255,255,255,0.15)) drop-shadow(0px 2px 4px rgba(0,0,0,0.8));">
+                        INTELIGENTE
+                    </h2>
+                    
+                    <div class="w-32 h-[2px] mx-auto mb-4 rounded-full"
+                         style="background: linear-gradient(to right, transparent, rgba(224,170,62,0.9), rgba(249,242,149,0.9), rgba(224,170,62,0.9), transparent); box-shadow: 0px -1px 1px rgba(0,0,0,1), 0px 1px 1px rgba(255,255,255,0.15), 0px 2px 4px rgba(0,0,0,0.8);"></div>
+                    
+                    <h3 class="font-serif font-bold text-lg md:text-xl uppercase tracking-[0.4em]"
+                        style="background: linear-gradient(to bottom, rgba(249,242,149,0.9) 0%, rgba(224,170,62,0.95) 40%, rgba(100,60,10,0.9) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px -1px 1px rgba(0,0,0,1)) drop-shadow(0px 1px 1px rgba(255,255,255,0.15)) drop-shadow(0px 2px 4px rgba(0,0,0,0.8));">
+                        SIMBIOSE
+                    </h3>
                 </div>
             </div>
 
@@ -136,7 +135,7 @@
                             </div>
                             <div class="flex justify-center items-center gap-3 h-6">
                                 @for (dot of [0, 1, 2, 3, 4, 5]; track dot) {
-                                    <div class="w-2.5 h-2.5 rounded-full transition-all duration-300"
+                                    <div class="w-2.5 h-2.5 rounded-full"
                                          [class.bg-[#ea580c]]="pin().length > dot && !loginSuccess()"
                                          [class.bg-green-500]="loginSuccess()"
                                          [class.bg-[#444]]="pin().length <= dot"
@@ -150,7 +149,7 @@
                         <!-- KEYPAD -->
                         <div class="grid grid-cols-3 gap-2 mb-4" [class.opacity-50]="loginSuccess()">
                             @for (num of [1, 2, 3, 4, 5, 6, 7, 8, 9]; track num) {
-                                <button (click)="append(num)" class="h-12 rounded-md bg-white/5 backdrop-blur-md border border-white/10 shadow-md active:scale-95 text-gray-200 font-bold text-xl hover:bg-white/10 hover:text-[#ea580c] transition-all">{{ num }}</button>
+                                <button (click)="append(num)" class="h-12 rounded-md bg-white/5 backdrop-blur-md border border-white/10 shadow-md active:scale-95 text-gray-200 font-bold text-xl hover:bg-white/10 hover:text-[#ea580c]">{{ num }}</button>
                             }
                             <!-- CLR Button: Vermelho Sangue -->
                             <button (click)="clear()" class="h-12 rounded-md bg-white/5 border border-white/10 active:scale-95 text-red-700 font-bold text-[9px] hover:text-red-600">CLR</button>

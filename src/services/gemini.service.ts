@@ -1,15 +1,13 @@
 
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
 import { DbService, Morador, Encomenda } from '../services/db.service';
 import { UiService } from './ui.service';
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { QuantumNetService } from './core/quantum-net.service';
-import { DeepSeekService } from './deep-seek.service';
-import { environment } from '../environments/environment';
+import { ExclusiveScannerService } from './exclusive-scanner.service';
 
-declare var jsQR: any;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+declare let jsQR: unknown;
 
 export interface NeuralEvent {
   timestamp: number;
@@ -46,6 +44,9 @@ export interface OcrExtractionResult {
   // Identificação Lógica
   matchedMoradorId?: string; // ID do morador encontrado via lógica
   wasAutoCorrected?: boolean; // Flag se houve correção automática
+  possibleMoradores?: Morador[]; // Lista de moradores possíveis para seleção manual
+  bloco?: string; // Bloco extraído
+  apto?: string; // Apto extraído
 }
 
 interface OcrCacheEntry {
@@ -68,13 +69,11 @@ export interface SimbioseMemory {
 export class GeminiService {
   private db = inject(DbService);
   private ui = inject(UiService);
-  private http = inject(HttpClient);
   private quantumNet = inject(QuantumNetService); 
-  private deepSeek = inject(DeepSeekService); 
+  private scannerV4 = inject(ExclusiveScannerService);
   
   private genAI: GoogleGenAI;
   private apiKey: string = '';
-  private readonly initPromise: Promise<void>;
   
   public evolutionStatus = signal<'IDLE' | 'ANALYZING' | 'EVOLVING' | 'COMPLETE' | 'OPTIMIZING'>('IDLE');
   public lastEvolution = signal<string>('');
@@ -89,8 +88,20 @@ export class GeminiService {
   private memory: SimbioseMemory = { carrierFrequency: {}, residentFrequency: {}, residentAliases: {}, lastTraining: 0, neuralVersion: 1 };
 
   constructor() {
-    this.genAI = { models: {} } as any;
-    this.initPromise = this.initializeConfig();
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    this.apiKey = apiKey;
+
+    try {
+      this.genAI = new GoogleGenAI({ apiKey: apiKey });
+      if (this.apiKey) {
+        this.geminiApiStatus.set('CONFIGURED');
+      } else {
+        this.geminiApiStatus.set('NOT_CONFIGURED');
+      }
+    } catch {
+      this.genAI = { models: {} } as unknown as GoogleGenAI;
+      this.geminiApiStatus.set('NOT_CONFIGURED');
+    }
     
     this.loadOcrCache();
     this.loadMemory();
@@ -107,31 +118,6 @@ export class GeminiService {
             this.fundirMemoria(memoriaExterna);
         }
     });
-  }
-
-  private async initializeConfig() {
-    try {
-      // Busca a chave que o servidor disponibilizou
-      const config = await firstValueFrom(this.http.get<{ geminiApiKey: string }>('/api/config'));
-      if (config.geminiApiKey) {
-        this.apiKey = config.geminiApiKey;
-        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
-        this.geminiApiStatus.set('CONFIGURED');
-        console.log('🟠 Simbiose: Gemini API configurada com sucesso.');
-      }
-    } catch (err) {
-      // Fallback para configuração local (development)
-      const fallbackKey = environment.geminiApiKey || '';
-      if (fallbackKey) {
-        this.apiKey = fallbackKey;
-        this.genAI = new GoogleGenAI({ apiKey: this.apiKey });
-        this.geminiApiStatus.set('CONFIGURED');
-        console.log('🟠 Simbiose: Gemini API configurada via environment local.');
-      } else {
-        this.geminiApiStatus.set('NOT_CONFIGURED');
-        console.error('🔴 Simbiose: Erro ao carregar chave da API', err);
-      }
-    }
   }
   
   public getMemory(): Readonly<SimbioseMemory> {
@@ -194,65 +180,161 @@ export class GeminiService {
     if (memoryUpdated) {
         this.memory.lastTraining = Date.now();
         this.saveMemory();
-        setTimeout(() => this.deepSeek.executarTreinamentoDiario().catch(() => {}), 1000);
     }
   }
   
-  public async registrarLeituraValida() {
-      let count = parseInt(localStorage.getItem(this.SCAN_COUNT_KEY) || '0') + 1;
+  public registrarLeituraValida(): void {
+      const count = parseInt(localStorage.getItem(this.SCAN_COUNT_KEY) || '0', 10) + 1;
       localStorage.setItem(this.SCAN_COUNT_KEY, count.toString());
       if (count % 10 === 0) {
-          const countCarriers = this.db.forceTrainingDataset(); 
-          await this.retrainSimbioseFromDatabase(); 
-          this.ui.show(`Simbiose Evoluiu: ${countCarriers} padrões atualizados.`, 'SUCCESS');
+          this.db.forceTrainingDataset(); 
+          this.retrainSimbioseFromDatabase(); 
+          this.ui.show(`Simbiose Evoluiu: ${count} padrões atualizados.`, 'SUCCESS');
       }
   }
 
   // --- HYBRID OCR ENGINE + LOGIC RESOLVER ---
   
+  public async enviarParaAnalise(contexto: string): Promise<OcrExtractionResult> {
+      const prompt = `
+        A partir de agora, o processamento de imagem/OCR bruto é realizado localmente via Google ML Kit.
+        Entrada de Dados: Você receberá strings de texto pré-processadas.
+        Missão: Sua função é exclusivamente a análise lógica, categorização e validação dos dados recebidos.
+        Modo Econômico: Responda de forma concisa (JSON) para minimizar o uso de tokens de saída.
+        Foco: Logística, conferência de etiquetas e protocolos de segurança.
+        
+        CAMPOS:
+        1. destinatario: Nome completo.
+        2. bloco: Bloco/Torre.
+        3. apto: Unidade.
+        4. transportadora: Identifique a transportadora (SHOPEE, MERCADO LIVRE, AMAZON, CORREIOS, LOGGI, JADLOG, etc.).
+        5. rawRastreio: Código de rastreio.
+        
+        REGRAS DE VALIDAÇÃO (CRÍTICO):
+        - EXTRAÇÃO ESTRITA DE NOME: Extraia o nome EXATAMENTE como aparece no texto. NUNCA tente adivinhar, corrigir, autocompletar ou "alinhar" o nome. Se o nome estiver incompleto ou estranho, retorne exatamente o que leu.
+        - A transportadora deve ser identificada PRIMEIRO.
+        - Com base na transportadora, valide o formato do código de rastreio:
+          - CORREIOS: 2 letras + 9 números + 2 letras (ex: AA123456789BR).
+          - SHOPEE (SPX): Geralmente começa com BR seguido de números.
+          - MERCADO LIVRE: Numérico.
+          - AMAZON: Começa com TBA.
+        - O texto "VESNINATARIO" ou similares (ex: "DESTINATARIO") NUNCA é um código de rastreio. Ignore-os.
+        - Se o código de rastreio não corresponder ao padrão da transportadora detectada, NÃO invente um código. Deixe vazio.
+        - NÃO adivinhe NENHUM dado. Se não tiver certeza absoluta, deixe o campo vazio.
+        
+        TEXTO:
+        "${contexto}"
+      `;
+      
+      const responseSchema: Schema = {
+        type: Type.OBJECT,
+        properties: { 
+            destinatario: { type: Type.STRING },
+            bloco: { type: Type.STRING },
+            apto: { type: Type.STRING },
+            transportadora: { type: Type.STRING },
+            rawRastreio: { type: Type.STRING },
+            confianca: { type: Type.NUMBER },
+        },
+        required: ["destinatario", "transportadora", "confianca"]
+      };
+
+      try {
+          if (!this.apiKey) throw new Error("No Gemini API Key");
+
+          const response = await this.genAI.models.generateContent({
+            model: 'gemini-3.1-flash-lite-preview',
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: responseSchema,
+              temperature: 0.1
+            }
+          });
+          
+          const parsed = JSON.parse(response.text || '{}');
+          return {
+              destinatario: parsed.destinatario || '',
+              bloco: parsed.bloco || '',
+              apto: parsed.apto || '',
+              localizacao: (parsed.bloco && parsed.apto) ? `${parsed.bloco} ${parsed.apto}` : '',
+              transportadora: parsed.transportadora || 'LEITURA MANUAL',
+              confianca: parsed.confianca || 0.0,
+              rawRastreio: parsed.rawRastreio,
+              condicaoVisual: 'Intacta',
+          };
+      } catch (geminiError) {
+          console.error('Gemini falhou em enviarParaAnalise.', geminiError);
+          throw geminiError;
+      }
+  }
+
   async extractTextFromLabel(
       imageBase64: string, 
       moradores: Morador[], 
       carriers: string[], 
       localHints: { qrCode?: string, ocrText?: string, qualityData?: ImageQualityData } = {}
   ): Promise<OcrExtractionResult> {
-
-    // Aguarda a configuração estar pronta antes de processar
-    await this.initPromise;
+    
+    const startTime = performance.now();
+    // console.log('[SIMBIOSE] Iniciando Protocolo de Leitura Híbrida (Turbo Mode)...');
 
     if (!imageBase64 || imageBase64.length < 100) return this.emptyResult();
     
     const cacheKey = localHints.qrCode || await this.db.getUniqueHash(imageBase64); 
     const cached = this.getOcrCacheEntry(cacheKey);
-    if (cached) return cached.data;
+    if (cached) {
+        const endTime = performance.now();
+        console.log(`[SIMBIOSE] OCR + Gemini Flash Lite (Cache) executado em ${((endTime - startTime) / 1000).toFixed(2)}s`);
+        return cached.data;
+    }
 
-    // 1. EXTRAÇÃO PURA (OCR)
+    // 1. EXTRAÇÃO PURA (OCR TESSERACT LATEST)
     let rawResult: OcrExtractionResult;
-    const hasKey = this.geminiApiStatus() === 'CONFIGURED';
-    const isOnline = navigator.onLine && hasKey;
+    
+    const qualityResult = localHints.qualityData || await this.detectImageQuality(imageBase64);
+    const turboActive = qualityResult.isPerfect;
 
-    let qualityResult = localHints.qualityData || await this.detectImageQuality(imageBase64);
-    let turboActive = qualityResult.isPerfect;
-
-    if (!isOnline) {
-        // Offline Mode
-        try {
-            rawResult = await this.deepSeek.processarImagemOffline(imageBase64, localHints);
-        } catch (e) {
-            rawResult = this.emptyResult();
+    try {
+        // [OCR LOCAL] Usa o texto pré-processado se fornecido, senão usa o Tesseract
+        const rawText = localHints.ocrText || await this.scannerV4.runOCR(imageBase64);
+        
+        // [PROTOCOLO DE IMUNIDADE] Filtra informações indesejadas (Blacklist)
+        const filteredText = this.scannerV4.filterBlacklist(rawText);
+        
+        // [REGEX DE ÚLTIMA GERAÇÃO] Auxilia na extração preliminar
+        const regexHints = this.scannerV4.assistWithRegex(rawText);
+        
+        if (filteredText && filteredText.length > 5) {
+            // [GEMINI VEREDITO] Envia o texto filtrado + dicas de regex para análise lógica
+            const promptContext = `
+              Texto Filtrado (OCR): "${filteredText}"
+              Dicas de Regex: ${JSON.stringify(regexHints)}
+              QR Code/Lens: ${localHints.qrCode || 'Não detectado'}
+            `;
+            
+            rawResult = await this.enviarParaAnalise(promptContext);
+            
+            // [GOOGLE LENS / QR CODE] Prioriza o código de rastreio lido via scanner de código
+            if (localHints.qrCode) {
+                rawResult.rawRastreio = localHints.qrCode;
+            } else if (!rawResult.rawRastreio && regexHints.rastreio) {
+                rawResult.rawRastreio = regexHints.rastreio;
+            }
+        } else {
+            // Fallback para o parser local se o texto for muito curto
+            const scanResult = await this.scannerV4.processScan(imageBase64);
+            rawResult = {
+                destinatario: scanResult.destinatario,
+                transportadora: scanResult.transportadora,
+                rawRastreio: localHints.qrCode || regexHints.rastreio,
+                confianca: scanResult.confidence / 100,
+                localizacao: regexHints.bloco && regexHints.apto ? `${regexHints.bloco} ${regexHints.apto}` : '',
+                condicaoVisual: 'Intacta'
+            };
         }
-    } else {
-        // Online Mode
-        try {
-            const topCarriers = this.getTopLearnedCarriers();
-            const activeCarriers = [...new Set([...topCarriers, ...carriers])];
-            rawResult = await this.runCloudGemini(imageBase64, moradores, activeCarriers, localHints);
-        } catch (err) {
-            // FALLBACK PARA RELEITURA OFFLINE
-            // Thermal Yield: Pausa antes de iniciar o Tesseract para evitar superaquecimento
-            await new Promise(resolve => setTimeout(resolve, 100));
-            rawResult = await this.deepSeek.processarImagemOffline(imageBase64, localHints);
-        }
+    } catch {
+        rawResult = this.emptyResult();
     }
 
     // 2. LÓGICA DE RESOLUÇÃO DE IDENTIDADE (SNIPER MODE STRICT)
@@ -266,12 +348,38 @@ export class GeminiService {
         });
     }
     
+    const endTime = performance.now();
+    console.log(`[SIMBIOSE] OCR + Gemini Flash Lite executado em ${((endTime - startTime) / 1000).toFixed(2)}s`);
+
     return { ...refinedResult, isBlurry: qualityResult.isBlurry, isEmpty: qualityResult.isEmpty, isTurbo: turboActive };
+  }
+
+  public runAccuracyTest(): void {
+    const moradores: Morador[] = [
+      { id: '1', nome: 'JOAO SILVA', bloco: 'A', apto: '101' },
+      { id: '2', nome: 'MARIA SOUZA', bloco: 'A', apto: '101' },
+      { id: '3', nome: 'PEDRO SANTOS', bloco: 'B', apto: '202' }
+    ];
+
+    const scenarios = [
+      { raw: { destinatario: 'JOAO SILVA', localizacao: 'BL A AP 101', transportadora: 'CORREIOS', confianca: 1.0 }, expected: 'JOAO SILVA' },
+      { raw: { destinatario: 'J0AO SILVA', localizacao: 'BL A AP 101', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA' },
+      { raw: { destinatario: 'MARIA', localizacao: 'BL A AP 101', transportadora: 'CORREIOS', confianca: 0.8 }, expected: 'MARIA SOUZA' },
+      { raw: { destinatario: 'PEDRO', localizacao: 'BL B AP 202', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'PEDRO SANTOS' },
+      { raw: { destinatario: 'JOAO SILVA', localizacao: 'BL B AP 202', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA' } // Should not match
+    ];
+
+    console.log('[AccuracyTest] Iniciando...');
+    scenarios.forEach((s, i) => {
+      const result = this.resolveIdentityLogic(s.raw, moradores);
+      const passed = result.destinatario === s.expected;
+      console.log(`[AccuracyTest] ${i+1}: ${passed ? 'PASS' : 'FAIL'} - Raw: ${s.raw.destinatario}, Expected: ${s.expected}, Got: ${result.destinatario}`);
+    });
   }
 
   // --- CORE LOGIC: TRIANGULAÇÃO SNIPER STRICT ---
   private resolveIdentityLogic(raw: OcrExtractionResult, moradores: Morador[]): OcrExtractionResult {
-      let finalResult = { ...raw };
+      const finalResult = { ...raw };
       
       // Normalização inicial
       const rawName = this.normalizeString(raw.destinatario);
@@ -304,12 +412,20 @@ export class GeminiService {
           if (moradoresDaUnidade.length > 0) {
               let bestMatch = null;
               let bestScore = 0;
+              const partialMatches = [];
 
               for (const morador of moradoresDaUnidade) {
-                  const score = this.calculateSimilarity(rawName, this.normalizeString(morador.nome));
+                  const moradorName = this.normalizeString(morador.nome);
+                  const score = this.calculateSimilarity(rawName, moradorName);
+                  
                   if (score > bestScore) {
                       bestScore = score;
                       bestMatch = morador;
+                  }
+                  
+                  // Check for partial match (e.g., "AYLA" in "AYLA VITORIA")
+                  if (rawName.length >= 3 && (moradorName.includes(rawName) || rawName.includes(moradorName))) {
+                      partialMatches.push(morador);
                   }
               }
 
@@ -323,36 +439,64 @@ export class GeminiService {
                   finalResult.matchedMoradorId = bestMatch.id;
                   finalResult.wasAutoCorrected = true;
                   return finalResult;
+              } else if (partialMatches.length === 1) {
+                  // Se encontrou exatamente um morador com aquele nome parcial na unidade
+                  const match = partialMatches[0];
+                  console.log('[Logic] Match Parcial Único:', match.nome);
+                  finalResult.destinatario = match.nome;
+                  finalResult.matchedMoradorId = match.id;
+                  finalResult.wasAutoCorrected = true;
+                  return finalResult;
               } else {
                   // Se não bateu o nome, MANTÉM O OCR ORIGINAL.
                   // Nunca adivinhe que é o titular se o nome for diferente.
-                  console.log('[Logic] Unidade detectada, mas nome distinto. Mantendo original fiel.');
-                  // Preenchemos apenas a unidade para ajudar, mas deixamos o nome intacto.
-                  // Nota: O Form Component já preenche bloco/apto se vier vazio no OCR mas tiver match aqui?
-                  // O parseLocationString já extraiu o bloco/apto do texto, então o form já deve ter recebido no rawResult.
+                  console.log('[Logic] Unidade detectada, mas nome distinto ou múltiplo. Retornando lista de moradores.');
+                  finalResult.possibleMoradores = moradoresDaUnidade;
+                  finalResult.bloco = bloco;
+                  finalResult.apto = apto;
               }
           }
       }
 
       // 3. TENTATIVA FUZZY GLOBAL (Último recurso, muito cauteloso)
       if (rawName.length > 5) {
-          let bestGlobalMatch = null;
-          let bestGlobalScore = 0;
+          const matches: { morador: Morador, score: number }[] = [];
 
           for (const morador of moradores) {
-              const score = this.calculateSimilarity(rawName, this.normalizeString(morador.nome));
-              if (score > bestGlobalScore) {
-                  bestGlobalScore = score;
-                  bestGlobalMatch = morador;
+              const moradorName = this.normalizeString(morador.nome);
+              const score = this.calculateSimilarity(rawName, moradorName);
+              
+              // Se o nome for exatamente igual ou contiver o nome escaneado de forma única
+              if (score > 0.85 || (rawName.length > 8 && moradorName.includes(rawName)) || (moradorName.length > 8 && rawName.includes(moradorName))) {
+                  matches.push({ morador, score: Math.max(score, 0.86) });
               }
           }
 
-          // SNIPER RULE GLOBAL: Exige 95% de certeza para trocar sem unidade.
-          if (bestGlobalMatch && bestGlobalScore > 0.95) { 
-               console.log('[Logic] Match Fuzzy Global (Certeza Absoluta):', bestGlobalMatch.nome);
-               finalResult.destinatario = bestGlobalMatch.nome;
-               finalResult.matchedMoradorId = bestGlobalMatch.id;
-               finalResult.wasAutoCorrected = true;
+          // Ordena por score
+          matches.sort((a, b) => b.score - a.score);
+
+          if (matches.length === 1) {
+              // Match único global: Certeza alta o suficiente para auto-preencher
+              const best = matches[0].morador;
+              console.log('[Logic] Match Global Único:', best.nome);
+              finalResult.destinatario = best.nome;
+              finalResult.matchedMoradorId = best.id;
+              finalResult.wasAutoCorrected = true;
+              return finalResult;
+          } else if (matches.length > 1) {
+              // Múltiplos matches: Se o primeiro for muito superior ao segundo
+              if (matches[0].score - matches[1].score > 0.2) {
+                  const best = matches[0].morador;
+                  console.log('[Logic] Match Global Dominante:', best.nome);
+                  finalResult.destinatario = best.nome;
+                  finalResult.matchedMoradorId = best.id;
+                  finalResult.wasAutoCorrected = true;
+                  return finalResult;
+              } else {
+                  // Ambiguidade global: Retorna lista para seleção manual
+                  console.log('[Logic] Ambiguidade Global Detectada.');
+                  finalResult.possibleMoradores = matches.map(m => m.morador);
+              }
           }
       }
 
@@ -388,7 +532,7 @@ export class GeminiService {
   }
 
   private editDistance(s1: string, s2: string): number {
-      const costs = new Array();
+      const costs = [];
       for (let i = 0; i <= s1.length; i++) {
           let lastValue = i;
           for (let j = 0; j <= s2.length; j++) {
@@ -445,83 +589,23 @@ export class GeminiService {
     });
   }
 
-  private async runCloudGemini(base64: string, moradores: Morador[], carriers: string[], localHints: { qrCode?: string }): Promise<OcrExtractionResult> {
-      const carrierList = carriers.slice(0, 50).join(',');
-      
-      // SNIPER MODE PROMPT REFORÇADO (VERBATIM)
-      const systemInstruction = `
-        JSON ONLY. Extract: destinatario, transportadora, rastro. Condição: Intacta/Violada.
-        List: [${carrierList}]. QR: ${localHints.qrCode || 'N/A'}. 
-        
-        SNIPER PROTOCOL ACTIVATED (STRICT VERBATIM):
-        - EXTRACT TEXT EXACTLY AS PRINTED. DO NOT AUTO-CORRECT.
-        - DO NOT GUESS NAMES. If the label says "Maria", WRITE "Maria", even if you think it should be "Mario".
-        - If the name is blurry/illegible, return EMPTY STRING. DO NOT HALLUCINATE.
-        - IGNORE ADDRESS LINES (Rua, Av, CEP). Focus ONLY on RECIPIENT NAME.
-        
-        PRIVACY PROTOCOL ZERO:
-        - YOU MUST NOT PROCESS HUMAN FACES. If a human face is clearly visible, set 'privacyBlocked' to true.
-        
-        IMMUTABLE RULES:
-        1. BLACKLIST: IGNORE 'RUA', 'AV', 'CEP', 'PEDIDO', 'NOTA', 'FISCAL', 'CNPJ', 'CPF', 'VOLUME'.
-        2. TRACKING: Must be long alphanumeric.
-        3. CARRIER: Look for logos or names from the provided list.
-      `;
-      const prompt = `Analise a etiqueta fielmente. Sem suposições.`;
 
-      const responseSchema: Schema = {
-        type: Type.OBJECT,
-        properties: { 
-            destinatario: { type: Type.STRING },
-            localizacao: { type: Type.STRING },
-            transportadora: { type: Type.STRING },
-            rawRastreio: { type: Type.STRING },
-            condicaoVisual: { type: Type.STRING, enum: ["Intacta", "Amassada", "Rasgada", "Violada"] },
-            confianca: { type: Type.NUMBER },
-            privacyBlocked: { type: Type.BOOLEAN, description: "True if human face is detected." }
-        },
-        required: ["destinatario", "transportadora", "confianca"]
-      };
-
-      if (!this.apiKey) throw new Error("No API Key");
-
-      const response = await this.genAI.models.generateContent({
-        model: 'gemini-2.5-flash', 
-        contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: base64 } }, { text: prompt }] },
-        config: { systemInstruction, responseMimeType: 'application/json', responseSchema, temperature: 0.0, thinkingConfig: { thinkingBudget: 0 } }
-      });
-      
-      const parsed = JSON.parse(response.text || '{}');
-      return {
-          destinatario: parsed.destinatario || '',
-          localizacao: parsed.localizacao || '',
-          transportadora: parsed.transportadora || 'LEITURA MANUAL',
-          confianca: parsed.confianca || 0.0,
-          rawRastreio: parsed.rawRastreio,
-          condicaoVisual: parsed.condicaoVisual || 'Intacta',
-          destinatarioConfidence: parsed.destinatario ? (parsed.confianca || 0.8) : 0,
-          localizacaoConfidence: parsed.localizacao ? (parsed.confianca || 0.8) : 0,
-          transportadoraConfidence: parsed.transportadora ? 0.8 : 0,
-          rastreioConfidence: parsed.rawRastreio ? 0.9 : 0,
-          privacyBlocked: parsed.privacyBlocked || false 
-      };
-  }
 
   public async retrainSimbioseFromDatabase(): Promise<void> {
-      return this.deepSeek.executarTreinamentoDiario().then(memory => {
-          this.fundirMemoria(memory);
-      });
+      console.log('[Simbiose] Retreinamento via Gemini iniciado (Simulado).');
+      // No futuro, implementar retreinamento via Gemini se necessário.
+      return Promise.resolve();
   }
 
   private loadMemory() {
-      try { const stored = localStorage.getItem(this.MEMORY_KEY); if (stored) this.memory = JSON.parse(stored); } catch (e) {}
+      try { const stored = localStorage.getItem(this.MEMORY_KEY); if (stored) this.memory = JSON.parse(stored); } catch { /* ignore */ }
   }
   private saveMemory() {
-      try { localStorage.setItem(this.MEMORY_KEY, JSON.stringify(this.memory)); } catch (e) {}
+      try { localStorage.setItem(this.MEMORY_KEY, JSON.stringify(this.memory)); } catch { /* ignore */ }
   }
   public exportarMemoria(): string { return JSON.stringify(this.memory, null, 2); }
   public importarMemoria(json: string): boolean {
-    try { return this.fundirMemoria(JSON.parse(json)); } catch (e) { return false; }
+    try { return this.fundirMemoria(JSON.parse(json)); } catch { return false; }
   }
   
   private fundirMemoria(memoriaExterna: SimbioseMemory): boolean {
@@ -551,15 +635,15 @@ export class GeminiService {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          const freshEntries = parsed.filter(([_, entry]) => (Date.now() - entry.timestamp) < this.CACHE_LIFETIME_MS);
+          const freshEntries = parsed.filter(([, entry]) => (Date.now() - entry.timestamp) < this.CACHE_LIFETIME_MS);
           this.ocrCache = new Map(freshEntries);
         }
       }
-    } catch (e) { localStorage.removeItem(this.CACHE_KEY); }
+    } catch { localStorage.removeItem(this.CACHE_KEY); }
   }
-  private saveOcrCache() { try { localStorage.setItem(this.CACHE_KEY, JSON.stringify(Array.from(this.ocrCache.entries()))); } catch (e) {} }
+  private saveOcrCache() { try { localStorage.setItem(this.CACHE_KEY, JSON.stringify(Array.from(this.ocrCache.entries()))); } catch { /* ignore */ } }
   private getOcrCacheEntry(key: string): OcrCacheEntry | undefined {
-    let entry = this.ocrCache.get(key);
+    const entry = this.ocrCache.get(key);
     if (entry && (Date.now() - entry.timestamp < this.CACHE_LIFETIME_MS)) return entry;
     this.ocrCache.delete(key); return undefined;
   }

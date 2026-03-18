@@ -4,9 +4,9 @@
 // If the HTML content was important, it should be moved to a separate .html file.
 
 const config = {
-  appId: 'com.protocolointeligente.app',
+  appId: 'com.seuusuario.simbiose',
   appName: 'Protocolo Inteligente',
-  webDir: 'dist/browser',
+  webDir: 'dist',
   bundledWebRuntime: false,
 };
 

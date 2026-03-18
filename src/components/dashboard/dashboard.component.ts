@@ -1,5 +1,5 @@
 
-import { Component, inject, signal, computed, effect, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnDestroy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
@@ -31,6 +31,7 @@ export class DashboardComponent implements OnDestroy {
   // --- STATE SIGNALS ---
   searchQuery = signal('');
   activeFilter = signal<string>('PENDENTE'); // Default Absoluto
+  displayLimit = signal<number>(50);
   viewMode = signal<'LIST' | 'SHELF'>('LIST');
   
   // Modal States
@@ -44,7 +45,7 @@ export class DashboardComponent implements OnDestroy {
   selectedSearchItem = signal<Encomenda | null>(null); // Para detalhe vindo da busca (se clicar no item específico)
   
   // Withdrawal Flow State
-  withdrawalItem = signal<Encomenda | null>(null); // Item sendo retirado (pode ser um grupo disfarçado ou single)
+  withdrawalItem = signal<Encomenda | GroupedItem | null>(null); // Item sendo retirado (pode ser um grupo disfarçado ou single)
   withdrawalStep = signal<'NAME' | 'SIGNATURE' | 'SUCCESS'>('NAME');
   withdrawalReceiverName = signal('');
   withdrawalReceiverCpf = signal(''); // Novo: CPF para terceiros
@@ -65,7 +66,7 @@ export class DashboardComponent implements OnDestroy {
 
   // Group Action Logic (Retirar Todos vs Individual)
   showGroupActionModal = signal(false);
-  groupActionItem = signal<Encomenda | null>(null); // O item "pai" que representa o grupo no card
+  groupActionItem = signal<Encomenda | GroupedItem | null>(null); // O item "pai" que representa o grupo no card
 
   // Search Logic Helpers
   searchExpandedCategory = signal<'PENDENTE' | 'ENTREGUE' | null>(null);
@@ -116,7 +117,7 @@ export class DashboardComponent implements OnDestroy {
   
   ngOnDestroy() { this.ui.isImageViewerOpen.set(false); this.ui.isSignatureMode.set(false); }
 
-  removeReadonly(event: any) { event.target.removeAttribute('readonly'); }
+  removeReadonly(event: Event) { (event.target as HTMLElement).removeAttribute('readonly'); }
   encomendas = computed(() => this.db.encomendas());
   
   filteredEncomendas = computed(() => {
@@ -177,7 +178,7 @@ export class DashboardComponent implements OnDestroy {
               groups.get(key)!.push(item);
           });
 
-          const groupedList: any[] = [];
+          const groupedList: (Encomenda | GroupedItem)[] = [];
           groups.forEach((items) => {
               if (items.length === 1) {
                   groupedList.push(items[0]); 
@@ -203,8 +204,21 @@ export class DashboardComponent implements OnDestroy {
       return list;
   });
 
+  displayedEncomendas = computed(() => {
+      return this.filteredEncomendas().slice(0, this.displayLimit());
+  });
+
+  loadMore() {
+      this.displayLimit.update(v => v + 50);
+  }
+
+  setFilter(filter: string) {
+      this.activeFilter.set(filter);
+      this.displayLimit.set(50);
+  }
+
   groupedSearchResults = computed(() => { const q = (this.searchQuery() || '').toLowerCase().trim(); if (!q) return { pending: [], delivered: [] }; const all = this.encomendas(); const matches = all.filter(e => (e.destinatarioNome || '').toLowerCase().includes(q) || (e.bloco || '').toLowerCase().includes(q) || (e.apto || '').toLowerCase().includes(q) || (e.codigoRastreio || '').toLowerCase().includes(q) ); return { pending: matches.filter(e => e.status === 'PENDENTE').sort((a,b) => new Date(b.dataEntrada).getTime() - new Date(a.dataEntrada).getTime()), delivered: matches.filter(e => e.status === 'ENTREGUE').sort((a,b) => new Date(b.dataEntrada).getTime() - new Date(a.dataEntrada).getTime()) }; });
-  foundResidents = computed(() => { const q = (this.searchQuery() || '').toLowerCase().trim(); if (q.length < 1) return []; const separatorRegex = /[\/\-\s]+/; const parts = q.split(separatorRegex); if (parts.length >= 2) { const b = parts[0].trim(); const a = parts[1].trim(); return this.db.moradores().filter(m => { const mBloco = (m.bloco || '').toLowerCase(); const mApto = (m.apto || '').toLowerCase(); const matchExact = mBloco === b && mApto === a; const matchPartial = mBloco.includes(b) && mApto.includes(a); return matchExact || matchPartial; }).sort((a,b) => (a.isPrincipal ? -1 : 1)).slice(0, 10); } return this.db.moradores().filter(m => (m.nome || '').toLowerCase().includes(q) || (m.bloco || '').toLowerCase() === q || (m.apto || '').toLowerCase() === q ).slice(0, 8); });
+  foundResidents = computed(() => { const q = (this.searchQuery() || '').toLowerCase().trim(); if (q.length < 1) return []; const separatorRegex = /[\/\-\s]+/; const parts = q.split(separatorRegex); if (parts.length >= 2) { const b = parts[0].trim(); const a = parts[1].trim(); return this.db.moradores().filter(m => { const mBloco = (m.bloco || '').toLowerCase(); const mApto = (m.apto || '').toLowerCase(); const matchExact = mBloco === b && mApto === a; const matchPartial = mBloco.includes(b) && mApto.includes(a); return matchExact || matchPartial; }).sort((a) => (a.isPrincipal ? -1 : 1)).slice(0, 10); } return this.db.moradores().filter(m => (m.nome || '').toLowerCase().includes(q) || (m.bloco || '').toLowerCase() === q || (m.apto || '').toLowerCase() === q ).slice(0, 8); });
   
   stats = computed(() => { 
       const list = this.encomendas(); 
@@ -236,18 +250,23 @@ export class DashboardComponent implements OnDestroy {
   closeShelf() { this.selectedShelf.set(null); }
   currentShelfItems() { return this.selectedShelf()?.items || []; }
   closeUpdateCard() { this.showUpdateCard.set(false); localStorage.setItem('simbiose_version_ack', this.CURRENT_APP_VERSION); }
-  openImage(event: Event, item: any) { event.stopPropagation(); if (item.groupCount && item.groupCount > 1) { this.selectedGroup.set(item as GroupedItem); } else if (item.fotoBase64) { this.ui.openImage(item.fotoBase64); } }
+  openImage(event: Event, item: Encomenda | GroupedItem) { 
+      event.stopPropagation(); 
+      if (item.fotoBase64) { 
+          this.ui.openImage(item.fotoBase64); 
+      } 
+  }
   viewGroupItemImage(base64?: string) { if(base64) this.ui.openImage(base64); }
   closeImage() { this.ui.closeImage(); this.viewingImage.set(null); }
   closeGroupModal() { this.selectedGroup.set(null); }
   
-  startWithdrawal(item: Encomenda, fromGroupModal: boolean = false) { 
-      if ((item as any).groupCount && (item as any).groupCount > 1 && !fromGroupModal) { 
-          this.groupActionItem.set(item); 
+  startWithdrawal(item: Encomenda | GroupedItem, fromGroupModal: boolean = false) { 
+      if ((item as GroupedItem).groupCount && (item as GroupedItem).groupCount > 1 && !fromGroupModal) { 
+          this.groupActionItem.set(item as GroupedItem); 
           this.showGroupActionModal.set(true); 
           return; 
       } 
-      this.withdrawalItem.set(item); 
+      this.withdrawalItem.set(item as Encomenda); 
       this.withdrawalStep.set('NAME'); 
       // SECURITY: Force empty input on start. Operator must verify identity.
       this.withdrawalReceiverName.set(''); 
@@ -286,25 +305,6 @@ export class DashboardComponent implements OnDestroy {
   closeQuickRegister() { this.showQuickRegisterModal.set(false); this.cancelWithdrawal(); }
   
   // --- REDIRECIONAMENTO COM FLUXO DE RETORNO ---
-  redirectToCompleteRegistration() { 
-      const item = this.withdrawalItem(); 
-      // SEGURANÇA: Não pré-preencher o nome. O operador deve digitar para confirmar no cadastro.
-      const name = ''; 
-      
-      if (item) { 
-          this.db.tempFlowState.set({ 
-              active: true, 
-              type: 'WITHDRAWAL_REGISTER', 
-              data: { 
-                  packageId: item.id, 
-                  tempName: name, 
-                  returnToDashboard: true 
-              } 
-          }); 
-          this.router.navigate(['/admin'], { queryParams: { tab: 'moradores' } }); 
-      } 
-  }
-  
   proceedAsThirdParty() { this.isThirdPartyMode.set(true); this.withdrawalReceiverCpf.set(''); }
   confirmThirdParty() { if (!this.withdrawalReceiverCpf() || this.withdrawalReceiverCpf().length < 11) { this.ui.show('CPF é obrigatório para terceiros.', 'WARNING'); return; } this.withdrawalReceiverName.set(this.quickRegName()); this.showQuickRegisterModal.set(false); }
   toggleThirdParty() { this.isThirdPartyMode.update(v => !v); if (!this.isThirdPartyMode()) { this.withdrawalReceiverCpf.set(''); } }
@@ -317,31 +317,19 @@ export class DashboardComponent implements OnDestroy {
       return unitResidents.filter(m => (m.nome || '').toUpperCase().includes(term)).slice(0, 4); 
   });
   
-  // --- DETECTA MORADOR DESCONHECIDO (Nome existe na encomenda mas não no DB) ---
-  isUnknownResident = computed(() => {
-      const inputName = (this.withdrawalReceiverName() || '').toUpperCase().trim();
-      if (inputName.length < 3) return false;
-      
-      // Verifica se o nome já está na lista filtrada (match exato ou parcial)
-      const matches = this.filteredResidents();
-      const exactMatch = matches.some(m => m.nome.toUpperCase() === inputName);
-      
-      return !exactMatch;
-  });
-
   showResidentSuggestions = computed(() => this.suggestionsActive() && this.withdrawalStep() === 'NAME' && !this.isThirdPartyMode() );
   onNameInput() { this.suggestionsActive.set(true); }
   onNameFocus() { this.suggestionsActive.set(true); }
   selectResident(resident: Morador) { this.withdrawalReceiverName.set(resident.nome); this.suggestionsActive.set(false); }
-  goToSignature() { const name = this.withdrawalReceiverName().trim().toUpperCase(); if (!name || name.length < 3) { this.ui.show('Informe o nome de quem está retirando.', 'WARNING'); return; } if (this.isThirdPartyMode()) { if (!this.withdrawalReceiverCpf() || this.withdrawalReceiverCpf().length < 11) { this.ui.show('CPF Obrigatório para terceiros/entregadores.', 'WARNING'); this.ui.vibrate([100, 50, 100]); return; } } else { const validResidents = this.unitResidentsSuggestions(); if (validResidents.length > 0) { const isResident = validResidents.some(r => r.nome.toUpperCase() === name); if (!isResident) { this.ui.show('Apenas moradores listados podem retirar. Se não for, marque "Retirada por Terceiro".', 'WARNING'); this.ui.vibrate([100, 50, 100]); return; } } else { this.ui.show('Unidade sem moradores cadastrados. Cadastre primeiro ou marque como Terceiro.', 'WARNING'); return; } } this.withdrawalStep.set('SIGNATURE'); setTimeout(() => this.initSignatureCanvas(), 100); }
+  goToSignature() { const name = this.withdrawalReceiverName().trim().toUpperCase(); if (!name || name.length < 3) { this.ui.show('Informe o nome de quem está retirando.', 'WARNING'); return; } if (this.isThirdPartyMode()) { if (!this.withdrawalReceiverCpf() || this.withdrawalReceiverCpf().length < 11) { this.ui.show('CPF Obrigatório para terceiros/entregadores.', 'WARNING'); this.ui.vibrate([100, 50, 100]); return; } } else { const validResidents = this.unitResidentsSuggestions(); if (validResidents.length > 0) { const isResident = validResidents.some(r => r.nome.toUpperCase() === name); if (!isResident) { this.ui.show('Apenas moradores listados podem retirar. Se não for, marque "Retirada por Terceiro".', 'WARNING'); this.ui.vibrate([100, 50, 100]); return; } } else { this.ui.show('Unidade sem moradores cadastrados. Marque como Terceiro para retirar.', 'WARNING'); return; } } this.withdrawalStep.set('SIGNATURE'); setTimeout(() => this.initSignatureCanvas(), 100); }
   private canvasCtx: CanvasRenderingContext2D | null = null;
   private isDrawing = false;
   private lastPoint: { x: number, y: number } = { x: 0, y: 0 };
   initSignatureCanvas() { const canvas = document.querySelector('canvas') as HTMLCanvasElement; if (!canvas) return; setTimeout(() => { const dpr = window.devicePixelRatio || 1; const rect = canvas.parentElement!.getBoundingClientRect(); canvas.width = rect.width * dpr; canvas.height = rect.height * dpr; this.canvasCtx = canvas.getContext('2d'); if (this.canvasCtx) { this.canvasCtx.scale(dpr, dpr); this.canvasCtx.lineWidth = 2.5; this.canvasCtx.lineCap = 'round'; this.canvasCtx.lineJoin = 'round'; this.canvasCtx.strokeStyle = '#000'; canvas.addEventListener('touchstart', (e) => this.startDraw(e), { passive: false }); canvas.addEventListener('touchmove', (e) => this.draw(e), { passive: false }); canvas.addEventListener('touchend', () => this.endDraw()); canvas.addEventListener('mousedown', (e) => this.startDraw(e)); canvas.addEventListener('mousemove', (e) => this.draw(e)); canvas.addEventListener('mouseup', () => this.endDraw()); } }, 300); }
-  startDraw(e: any) { if (e.cancelable) e.preventDefault(); this.isDrawing = true; const pos = this.getPos(e); this.lastPoint = pos; this.canvasCtx?.beginPath(); this.canvasCtx?.arc(pos.x, pos.y, 0.5, 0, 2 * Math.PI); this.canvasCtx?.fill(); }
-  draw(e: any) { if (!this.isDrawing || !this.canvasCtx) return; if (e.cancelable) e.preventDefault(); const currentPoint = this.getPos(e); const ctx = this.canvasCtx; const midPoint = { x: (this.lastPoint.x + currentPoint.x) / 2, y: (this.lastPoint.y + currentPoint.y) / 2 }; ctx.beginPath(); ctx.moveTo(this.lastPoint.x, this.lastPoint.y); ctx.quadraticCurveTo(this.lastPoint.x, this.lastPoint.y, midPoint.x, midPoint.y); ctx.lineTo(currentPoint.x, currentPoint.y); ctx.stroke(); this.lastPoint = currentPoint; }
+  startDraw(e: MouseEvent | TouchEvent) { if (e.cancelable) e.preventDefault(); this.isDrawing = true; const pos = this.getPos(e); this.lastPoint = pos; this.canvasCtx?.beginPath(); this.canvasCtx?.arc(pos.x, pos.y, 0.5, 0, 2 * Math.PI); this.canvasCtx?.fill(); }
+  draw(e: MouseEvent | TouchEvent) { if (!this.isDrawing || !this.canvasCtx) return; if (e.cancelable) e.preventDefault(); const currentPoint = this.getPos(e); const ctx = this.canvasCtx; const midPoint = { x: (this.lastPoint.x + currentPoint.x) / 2, y: (this.lastPoint.y + currentPoint.y) / 2 }; ctx.beginPath(); ctx.moveTo(this.lastPoint.x, this.lastPoint.y); ctx.quadraticCurveTo(this.lastPoint.x, this.lastPoint.y, midPoint.x, midPoint.y); ctx.lineTo(currentPoint.x, currentPoint.y); ctx.stroke(); this.lastPoint = currentPoint; }
   endDraw() { this.isDrawing = false; }
-  getPos(e: any) { const canvas = e.target as HTMLCanvasElement; const rect = canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: (clientX - rect.left), y: (clientY - rect.top) }; }
+  getPos(e: MouseEvent | TouchEvent) { const canvas = e.target as HTMLCanvasElement; const rect = canvas.getBoundingClientRect(); const clientX = (e as TouchEvent).touches ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX; const clientY = (e as TouchEvent).touches ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY; return { x: (clientX - rect.left), y: (clientY - rect.top) }; }
   clearSignature() { const canvas = document.querySelector('canvas') as HTMLCanvasElement; if (canvas && this.canvasCtx) { const rect = canvas.getBoundingClientRect(); this.canvasCtx.clearRect(0, 0, rect.width, rect.height); } }
 
   async confirmSignature() {
@@ -358,8 +346,8 @@ export class DashboardComponent implements OnDestroy {
           const now = new Date().toISOString();
           const itemsToUpdate: Encomenda[] = [];
           
-          if ((item as any).groupItems) itemsToUpdate.push(...(item as any).groupItems);
-          else itemsToUpdate.push(item);
+          if ((item as unknown as GroupedItem).groupItems) itemsToUpdate.push(...(item as unknown as GroupedItem).groupItems);
+          else itemsToUpdate.push(item as Encomenda);
 
           for (const pkg of itemsToUpdate) {
               const update: Partial<Encomenda> = {
@@ -381,11 +369,11 @@ export class DashboardComponent implements OnDestroy {
           // Gera o PDF silenciosamente e chama o envio via WhatsApp
           if (porteiro) {
               const { blob, url } = await this.pdf.generateWithdrawalProof(
-                  item, 
+                  item as Encomenda, 
                   porteiro, 
                   receiver, 
                   signatureBase64,
-                  (item as any).groupItems
+                  (item as unknown as GroupedItem).groupItems
               );
               
               // Dispara envio automático
@@ -406,7 +394,7 @@ export class DashboardComponent implements OnDestroy {
       if (!item) return;
       
       const receiver = this.withdrawalReceiverName();
-      const itemsCount = (item as any).groupCount || 1;
+      const itemsCount = (item as unknown as GroupedItem).groupCount || 1;
       const text = `*COMPROVANTE DE RETIRADA* ✅\n\nOlá,\nConfirmamos a retirada de *${itemsCount} volume(s)*.\n\n👤 Retirado por: ${receiver}\n📅 Data: ${new Date().toLocaleString()}\n\nObrigado!`;
       
       // Tenta compartilhar o arquivo PDF nativamente (Mobile)
@@ -423,7 +411,7 @@ export class DashboardComponent implements OnDestroy {
                   this.hasSharedProof.set(true);
                   return;
               }
-          } catch(e) {}
+          } catch {}
       }
 
       // Fallback: WhatsApp Texto + Abrir PDF
@@ -446,9 +434,40 @@ export class DashboardComponent implements OnDestroy {
   
   isOverdue(item: Encomenda) { const now = new Date(); const entry = new Date(item.dataEntrada); const diffTime = Math.abs(now.getTime() - entry.getTime()); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); return diffDays > 3; }
   daysInSystem(item: Encomenda) { const now = new Date(); const entry = new Date(item.dataEntrada); const diffTime = Math.abs(now.getTime() - entry.getTime()); return Math.floor(diffTime / (1000 * 60 * 60 * 24)); }
-  shareDeliveredProof(event: Event, item: Encomenda) { event.stopPropagation(); const text = `*2ª VIA DE COMPROVANTE* 📄\n\nEncomenda retirada em ${new Date(item.dataSaida!).toLocaleString()}\nPor: ${item.quemRetirou}\n\nProtocolo: ${item.id.substring(0,8)}`; const url = `https://wa.me/?text=${encodeURIComponent(text)}`; window.open(url, '_blank'); }
+  async shareDeliveredProof(event: Event, item: Encomenda) { 
+      event.stopPropagation(); 
+      try {
+          let porteiro = this.auth.currentUser();
+          if (item.porteiroSaidaId) {
+              const porteiros = this.db.porteiros();
+              const found = porteiros.find(p => p.id === item.porteiroSaidaId);
+              if (found) porteiro = found;
+          }
+          
+          if (!porteiro) {
+              this.ui.show('Erro: Usuário não identificado.', 'ERROR');
+              return;
+          }
+
+          const result = await this.pdf.generateWithdrawalProof(
+              item,
+              porteiro,
+              item.quemRetirou || 'Não identificado',
+              item.assinaturaBase64 || ''
+          );
+          
+          if (result && result.url) {
+              window.open(result.url, '_blank');
+          } else {
+              this.ui.show('Erro ao gerar a 2ª via do comprovante.', 'ERROR');
+          }
+      } catch (e) {
+          console.error('Erro ao gerar 2ª via:', e);
+          this.ui.show('Erro ao gerar a 2ª via do comprovante.', 'ERROR');
+      }
+  }
   closeSuccessModal() { this.withdrawalItem.set(null); this.withdrawalStep.set('NAME'); this.hasSharedProof.set(false); this.searchQuery.set(''); }
-  closeScanner(retainTriagemState: boolean = false) {}
+  closeScanner() {}
 
   // --- BOTÃO INBOX SISTEMA (LÓGICA) ---
   showInboxButton = computed(() => {

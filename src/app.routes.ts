@@ -7,8 +7,8 @@ import { PackageFormComponent } from './components/package-form/package-form.com
 import { AdminHubComponent } from './components/admin/admin.component';
 import { ManualComponent } from './components/manual/manual.component';
 import { NovoProtocoloComponent } from './components/novo-protocolo/novo-protocolo.component';
+import { StressTestComponent } from './components/diagnostic/stress-test.component';
 import { SecureDownloadComponent } from './components/secure-download/secure-download.component';
-import { ExampleComponent } from './app/components/example/example.component';
 import { inject } from '@angular/core';
 import { AuthService } from './services/auth.service';
 import { Router } from '@angular/router';
@@ -97,11 +97,12 @@ export const routes: Routes = [
     canActivate: [authGuard, multiCondoGuard]
   },
   {
-    path: 'secure-download/:id',
-    component: SecureDownloadComponent
+    path: 'diagnostic/stress-test',
+    component: StressTestComponent,
+    canActivate: [authGuard]
   },
   {
-    path: 'example',
-    component: ExampleComponent
+    path: 'secure-download/:id',
+    component: SecureDownloadComponent
   }
 ];

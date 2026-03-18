@@ -1,13 +1,13 @@
 
-import { Component, inject, signal, computed, ViewChild, ElementRef, AfterViewInit, OnDestroy, effect, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
-import { CommonModule, PercentPipe, DecimalPipe } from '@angular/common';
+import { Component, inject, signal, computed, ViewChild, ElementRef, AfterViewInit, OnDestroy, effect, ChangeDetectionStrategy, NgZone } from '@angular/core';
+import { CommonModule, PercentPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { DbService, Encomenda, Morador } from '../../services/db.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
-import { GeminiService, OcrExtractionResult, ImageQualityData } from '../../services/gemini.service';
+import { GeminiService, OcrExtractionResult } from '../../services/gemini.service';
 import { PdfService } from '../../services/pdf.service';
 import { BackPressService } from '../../services/core/back-press.service';
 import { ExclusiveScannerService } from '../../services/exclusive-scanner.service';
@@ -17,7 +17,7 @@ import { SimbioseHashService } from '../../services/core/simbiose-hash.service';
 @Component({
   selector: 'app-package-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, PercentPipe, DecimalPipe],
+  imports: [CommonModule, FormsModule, PercentPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './package-form.component.html'
 })
@@ -67,8 +67,8 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   scanStabilizationProgress = signal(0);
   private detectionStartTime: number | null = null;
   
-  // REGRA: Processamento (Tela Escura) mantido em 0.5s no modo turbo
-  private readonly STANDARD_CAPTURE_DELAY_MS = 500; 
+  // REGRA: Processamento (Tela Escura) reduzido para melhorar a velocidade
+  private readonly STANDARD_CAPTURE_DELAY_MS = 100; 
   
   isFlipSideMode = signal(false); 
   sideOneSummary = signal(''); 
@@ -84,7 +84,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   private lastFrameTime = 0;
   
   // PERFORMANCE TUNING: 
-  private readonly SCAN_THROTTLE_MS = 90; 
+  private readonly SCAN_THROTTLE_MS = 60; 
   
   private previousImageData: ImageData | null = null;
   private motionScore = signal(0);
@@ -93,8 +93,8 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   private analysisCanvas: HTMLCanvasElement | null = null;
   private analysisCtx: CanvasRenderingContext2D | null = null;
   
-  // BALANCED RESOLUTION: 540px width (qHD)
-  private readonly ANALYSIS_WIDTH = 540; 
+  // BALANCED RESOLUTION: 640px width
+  private readonly ANALYSIS_WIDTH = 640; 
 
   scannerHeaderTitle = signal('Busca Neural');
   showFlash = signal(false);
@@ -149,6 +149,15 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   carrierSearchQuery = signal('');
   showTransportadoraManualModal = signal(false);
   showInlineCarrierSuggestions = signal(false);
+  showInlineDestinatarioSuggestions = signal(false);
+
+  inlineDestinatarioSuggestions = computed<Morador[]>(() => {
+    const query = this.normalizeString(this.packageData().destinatarioNome || '');
+    if (query.length < 2) return [];
+    return this.db.moradores().filter(morador => 
+      this.normalizeString(morador.nome).includes(query)
+    ).slice(0, 5);
+  });
 
   relatedResidents = signal<Morador[]>([]);
 
@@ -379,7 +388,9 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
         ...this.packageData(),
         destinatarioNome: data.destinatario,
         transportadora: data.transportadora,
-        codigoRastreio: data.rawRastreio
+        codigoRastreio: data.rawRastreio,
+        bloco: data.bloco || this.packageData().bloco,
+        apto: data.apto || this.packageData().apto
       });
       this.scannerDataService.clearScannedData();
     }
@@ -434,6 +445,16 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   public closeTransportadoraManualModal() { this.showTransportadoraManualModal.set(false); }
   public closeTrackingCodeManualModal() { this.showTrackingCodeManualModal.set(false); }
 
+  public selectManualResident(morador: Morador) {
+      this.packageData.update(d => ({
+          ...d,
+          destinatarioNome: morador.nome,
+          bloco: morador.bloco,
+          apto: morador.apto
+      }));
+      this.closeDestinatarioManualModal();
+      this.ui.show(`Morador selecionado: ${morador.nome}`, 'SUCCESS');
+  }
 
   public startTriagem() {
       this.isTriagemMode.set(true);
@@ -445,6 +466,22 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       const validation = this.residentValidation();
       const name = d.destinatarioNome ? d.destinatarioNome.trim() : '';
       return !!(name.length >= 3 && d.transportadora && d.bloco && d.apto && validation.type === 'valid');
+  }
+
+  public calculateProgress(): number {
+      if (this.isProcessingScan()) return 60;
+      if (this.isScannerOpen()) return 20;
+      
+      const d = this.packageData();
+      let filled = 0;
+      if (d.destinatarioNome && d.destinatarioNome.trim().length >= 3) filled++;
+      if (d.transportadora) filled++;
+      if (d.bloco) filled++;
+      if (d.apto) filled++;
+      
+      if (this.isValidNew()) return 100;
+      
+      return filled * 20;
   }
 
   public generateStandardTracking(): string {
@@ -487,12 +524,11 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       // Force GPU Flush
       if (this.scannerVideo?.nativeElement) {
           this.scannerVideo.nativeElement.srcObject = null;
-          this.scannerVideo.nativeElement.load(); 
       }
   }
 
   async startScanner() {
-      console.log('startScanner called', { isScannerOpen: this.isScannerOpen(), isInitializingScanner: this.isInitializingScanner() });
+      // console.log('startScanner called', { isScannerOpen: this.isScannerOpen(), isInitializingScanner: this.isInitializingScanner() });
       if (this.isScannerOpen() || this.isInitializingScanner()) return;
       
       this.isInitializingScanner.set(true);
@@ -537,7 +573,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
                   video.play().catch(err => {
                       console.warn('Video playback interrupted (harmless):', err);
                   });
-                  console.log('Calling processFrame from startScanner');
+                  // console.log('Calling processFrame from startScanner');
                   this.processFrame();
               }
           }, 100);
@@ -568,7 +604,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   }
 
   private processFrame() {
-      console.log('processFrame called', { isProcessingScan: this.isProcessingScan(), isScannerOpen: this.isScannerOpen(), readyState: this.scannerVideo?.nativeElement?.readyState });
+      // console.log('processFrame called', { isProcessingScan: this.isProcessingScan(), isScannerOpen: this.isScannerOpen(), readyState: this.scannerVideo?.nativeElement?.readyState });
       // Immediate exit if we started processing
       if (this.isProcessingScan()) return;
 
@@ -582,7 +618,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       
       if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
-          console.log('Video has enough data');
+          // console.log('Video has enough data');
           const now = Date.now();
           if (now - this.lastFrameTime > this.SCAN_THROTTLE_MS && !this.isProcessingScan()) {
               this.lastFrameTime = now;
@@ -595,11 +631,11 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
               canvas.height = h;
               
               ctx.drawImage(video, 0, 0, w, h);
-              console.log('Calling detectAndCapture');
+              // console.log('Calling detectAndCapture');
               this.detectAndCapture(canvas);
           }
       } else {
-          console.log('Video not ready yet');
+          // console.log('Video not ready yet');
       }
       
       this.animationFrameId = requestAnimationFrame(() => this.processFrame());
@@ -635,8 +671,9 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       this.packageData.update(d => ({ ...d, fotoBase64: base64.split(',')[1] })); 
 
       // 3. COOL-DOWN GAP (Pausa Tática)
-      // Dá 50ms para o browser renderizar a tela preta e a GPU esfriar antes de chamar a IA.
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Dá 300ms para o browser renderizar a tela preta e a GPU/Bateria estabilizar antes de chamar a IA.
+      // Isso previne crash por pico de energia quando o celular está no carregador.
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       this.showProcessingBreathPrompt.set(true);
 
@@ -661,23 +698,46 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
           this.ngZone.run(() => {
               const morador = result.matchedMoradorId ? allMoradores.find(m => m.id === result.matchedMoradorId) : null;
               
-              if (!morador) {
+              if (morador) {
+                  this.packageData.update(d => ({
+                      ...d,
+                      destinatarioNome: result.destinatario || d.destinatarioNome,
+                      transportadora: result.transportadora || d.transportadora,
+                      codigoRastreio: result.rawRastreio || d.codigoRastreio,
+                      condicaoFisica: (result.condicaoVisual as 'EXCELENTE' | 'BOM' | 'AVARIADO' | 'CRITICO') || d.condicaoFisica
+                  }));
+                  
+                  this.updateModel('bloco', morador.bloco);
+                  this.updateModel('apto', morador.apto);
+                  if (result.wasAutoCorrected) {
+                      this.ui.show(`Identificado: ${morador.nome}`, 'SUCCESS');
+                  }
+              } else if (result.possibleMoradores && result.possibleMoradores.length > 0) {
+                  this.packageData.update(d => ({
+                      ...d,
+                      destinatarioNome: result.destinatario || d.destinatarioNome,
+                      transportadora: result.transportadora || d.transportadora,
+                      codigoRastreio: result.rawRastreio || d.codigoRastreio,
+                      condicaoFisica: (result.condicaoVisual as 'EXCELENTE' | 'BOM' | 'AVARIADO' | 'CRITICO') || d.condicaoFisica
+                  }));
+                  
+                  this.updateModel('bloco', result.bloco || '');
+                  this.updateModel('apto', result.apto || '');
+                  
+                  this.relatedResidents.set(result.possibleMoradores);
+                  this.showDestinatarioManualModal.set(true);
+                  this.ui.show('Múltiplos moradores encontrados. Selecione o correto.', 'INFO');
+              } else {
+                  this.packageData.update(d => ({
+                      ...d,
+                      destinatarioNome: result.destinatario || d.destinatarioNome,
+                      transportadora: result.transportadora || d.transportadora,
+                      codigoRastreio: result.rawRastreio || d.codigoRastreio,
+                      bloco: result.bloco || d.bloco,
+                      apto: result.apto || d.apto,
+                      condicaoFisica: (result.condicaoVisual as 'EXCELENTE' | 'BOM' | 'AVARIADO' | 'CRITICO') || d.condicaoFisica
+                  }));
                   this.ui.show('Morador não identificado no banco de dados.', 'ERROR');
-                  return;
-              }
-              
-              this.packageData.update(d => ({
-                  ...d,
-                  destinatarioNome: result.destinatario || d.destinatarioNome,
-                  transportadora: result.transportadora || d.transportadora,
-                  codigoRastreio: result.rawRastreio || d.codigoRastreio,
-                  condicaoFisica: (result.condicaoVisual as any) || d.condicaoFisica
-              }));
-              
-              this.updateModel('bloco', morador.bloco);
-              this.updateModel('apto', morador.apto);
-              if (result.wasAutoCorrected) {
-                  this.ui.show(`Identificado: ${morador.nome}`, 'SUCCESS');
               }
               
               this.ocrConfidences.set({
@@ -1011,6 +1071,24 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
 
   removeFoto() {
     this.packageData.update(d => ({ ...d, fotoBase64: undefined }));
+  }
+
+  onDestinatarioInput(value: string) {
+    this.updateModel('destinatarioNome', value);
+    this.showInlineDestinatarioSuggestions.set(true);
+  }
+
+  onDestinatarioBlur() {
+    setTimeout(() => {
+        this.showInlineDestinatarioSuggestions.set(false);
+    }, 200);
+  }
+
+  selectInlineDestinatario(resident: Morador) {
+    this.updateModel('destinatarioNome', resident.nome);
+    this.updateModel('bloco', resident.bloco);
+    this.updateModel('apto', resident.apto);
+    this.showInlineDestinatarioSuggestions.set(false);
   }
 
   onTransportadoraInput(value: string) {

@@ -1,6 +1,6 @@
 
 import { createFeatureSelector, createSelector } from '@ngrx/store';
-import { Morador } from '../services/db.service';
+import { Morador } from '../../services/db.service';
 
 // Feature Selector
 export const selectMoradorState = createFeatureSelector<ReadonlyArray<Morador>>('moradores');

@@ -1,5 +1,5 @@
 
-import { Component, inject, signal, ChangeDetectionStrategy, computed, effect } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy, computed } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { DbService, Porteiro } from '../../services/db.service';
 import { UiService } from '../../services/ui.service';
@@ -64,8 +64,8 @@ export class LoginComponent {
   constructor() {}
 
   // --- ANTI-AUTOFILL HELPER ---
-  removeReadonly(event: any) {
-    event.target.removeAttribute('readonly');
+  removeReadonly(event: Event) {
+    (event.target as HTMLInputElement).removeAttribute('readonly');
   }
 
   async openBook() {

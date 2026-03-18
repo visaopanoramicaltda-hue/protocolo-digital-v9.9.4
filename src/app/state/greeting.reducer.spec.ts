@@ -2,11 +2,6 @@ import { greetingReducer, initialState } from './greeting.reducer';
 import * as GreetingActions from './greeting.actions';
 import { Greeting } from '../models/greeting.model';
 
-// Declare test globals to avoid compilation errors when types are missing
-declare const describe: any;
-declare const it: any;
-declare const expect: any;
-
 describe('Greeting Reducer (Immutability & Purity)', () => {
   
   it('should return the default state in initial state', () => {

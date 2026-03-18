@@ -535,8 +535,17 @@ export class DeepSeekService {
   public async processarImagemOffline(base64: string, localHints: { qrCode?: string } = {}): Promise<OcrExtractionResult> {
       // Fallback para Tesseract Local via ExclusiveScanner
       try {
-          // CORREÇÃO: Removida chamada duplicada do runOCR.
-          // O processScan já invoca o runOCR internamente e processa o resultado.
+          // Extrai o texto bruto usando Tesseract
+          const rawText = await this.scannerV4.runOCR(base64);
+          
+          // Se tivermos a chave do DeepSeek, usamos ele para analisar o texto
+          const deepSeekKey = process.env.DEEPSEEK_API_KEY || '';
+          
+          if (deepSeekKey && rawText && rawText.length > 10) {
+              return await this.analisarTextoComDeepSeek(rawText, localHints, deepSeekKey);
+          }
+
+          // Se não tiver chave ou texto for muito curto, usa o parser local do ExclusiveScanner
           const scanResult = await this.scannerV4.processScan(base64);
           
           return {
@@ -549,6 +558,62 @@ export class DeepSeekService {
           };
       } catch (e) {
           return { destinatario: '', transportadora: '', confianca: 0 } as any;
+      }
+  }
+
+  public async analisarTextoComDeepSeek(texto: string, localHints: { qrCode?: string }, apiKey: string): Promise<OcrExtractionResult> {
+      const prompt = `
+        Analise o seguinte texto extraído de uma etiqueta de logística via OCR:
+        "${texto}"
+        
+        Extraia as seguintes informações e retorne APENAS um JSON válido:
+        - destinatario: Nome do destinatário (string)
+        - localizacao: Bloco e apartamento, se houver (string)
+        - transportadora: Nome da transportadora, se houver (string)
+        - rawRastreio: Código de rastreio, se houver (string). QR Code lido: ${localHints.qrCode || 'N/A'}
+        - condicaoVisual: "Intacta"
+        - confianca: Um número de 0.0 a 1.0 indicando a confiança da extração.
+        
+        Retorne APENAS o JSON, sem markdown, sem explicações.
+      `;
+
+      try {
+          const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                  model: 'deepseek-chat',
+                  messages: [
+                      { role: 'system', content: 'Você é um assistente especializado em logística. Responda apenas com JSON válido.' },
+                      { role: 'user', content: prompt }
+                  ],
+                  temperature: 0.1,
+                  response_format: { type: 'json_object' }
+              })
+          });
+
+          if (!response.ok) {
+              throw new Error(`DeepSeek API error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const content = data.choices[0].message.content;
+          const parsed = JSON.parse(content);
+
+          return {
+              destinatario: parsed.destinatario || '',
+              localizacao: parsed.localizacao || '',
+              transportadora: parsed.transportadora || 'LEITURA MANUAL',
+              confianca: parsed.confianca || 0.8,
+              rawRastreio: parsed.rawRastreio || localHints.qrCode,
+              condicaoVisual: parsed.condicaoVisual || 'Intacta'
+          };
+      } catch (error) {
+          console.error('Erro ao chamar DeepSeek API:', error);
+          throw error;
       }
   }
 

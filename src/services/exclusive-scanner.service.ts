@@ -1,265 +1,214 @@
-
 import { Injectable } from '@angular/core';
-
 declare var Tesseract: any;
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 export type ScanStatus = 'valid' | 'invalid' | 'fallback';
 
-export type ScanResult = {
+export interface ScanResult {
+  tracking: string;
   destinatario: string;
   transportadora: string;
+  bloco: string;
+  apartamento: string;
   confidence: number;
   heatmap: 'green' | 'yellow' | 'red';
   status: ScanStatus;
   timeMs: number;
-  rawText?: string;
-};
+}
 
-const STORAGE = {
-  moradores: 'learned-moradores',
-  transportadoras: 'learned-transportadoras',
-  lastSync: 'dataset-last-sync'
-};
+/* ============================================================
+   RESIDENT MEMORY (cache neural local)
+============================================================ */
 
-const BASE_TRANSPORTADORAS = [
-  'CORREIOS', 'SEDEX', 'JADLOG', 'LOGGI', 'TOTAL EXPRESS', 'AZUL CARGO', 
-  'MERCADO LIVRE', 'AMAZON', 'SHOPEE', 'MAGALU', 'FEDEX', 'DHL', 'TNT',
-  'BRASPRESS', 'PATRUS', 'DIRECT', 'SEQUOIA', 'RODONAVES'
-];
+class ResidentMemory {
 
-// --- PROTOCOLO DE IMUNIDADE (BLACKLIST IMUTÁVEL) ---
-const IMMUTABLE_IGNORE_LIST = [
-    'RUA', 'AV.', 'AVENIDA', 'ALAMEDA', 'TRAVESSA', 'RODOVIA', 'ESTRADA', // Endereços
-    'CEP', 'BAIRRO', 'CIDADE', 'ESTADO', 'UF', 'BRASIL', // Localização Genérica
-    'PEDIDO', 'ORDER', 'NOTA', 'FISCAL', 'DANFE', 'CNPJ', 'CPF', 'INSCRICAO', // Documentos Fiscais
-    'VOLUME', 'PESO', 'KG', 'GRAMAS', 'LITROS', // Metadados Físicos
-    'SMS1', 'SMS2', 'SMS', // Lixo de Impressoras Térmicas
-    'REMETENTE', 'DESTINATARIO', 'A/C', // Rótulos
-    'SERIE', 'LOTE', 'VALIDADE', 'FABRICACAO', // Dados de Produto
-    'FONE', 'TEL', 'CEL', 'CONTATO', // Contatos
-    'WWW', 'HTTP', '.COM', '.BR', // URLs
-    'FRAGIL', 'CUIDADO', 'VIDRO' // Avisos
-];
+  private cache = new Map<string, string>();
 
-@Injectable({
-  providedIn: 'root'
-})
+  constructor() {
+    const saved = localStorage.getItem('scanner_memory');
+    if (saved) {
+      JSON.parse(saved).forEach(([k, v]: any) =>
+        this.cache.set(k, v)
+      );
+    }
+  }
+
+  remember(key: string, residentId: string) {
+    this.cache.set(key, residentId);
+    localStorage.setItem(
+      'scanner_memory',
+      JSON.stringify([...this.cache])
+    );
+  }
+
+  recall(key: string) {
+    return this.cache.get(key);
+  }
+}
+
+/* ============================================================
+   EXCLUSIVE SCANNER SERVICE — V3
+============================================================ */
+
+@Injectable({ providedIn: 'root' })
 export class ExclusiveScannerService {
 
-  private readonly TIME_LIMIT = 1300; 
-  
-  // Yield de Resfriamento para Releitura (Motor Local é pesado)
-  private readonly RELEITURA_THERMAL_YIELD_MS = 50; 
-  
-  // ROTA LOCAL (OFFLINE FIRST) - Removida pois os assets não estão disponíveis
-  // Fallback para CDN
-  private readonly WORKER_LOCAL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
-  private readonly CORE_LOCAL = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js';
-  
-  // CDN FALLBACK
-  private readonly WORKER_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
-  private readonly CORE_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js';
-  
-  constructor() {}
+  private memory = new ResidentMemory();
 
-  /* ==========================
-     OCR LOCAL (V4 ENGINE)
-     ========================== */
-  public async runOCR(image: Blob | string): Promise<string> {
-    const source = typeof image === 'string' && !image.startsWith('data:') ? `data:image/jpeg;base64,${image}` : image;
+  private readonly IGNORE = [
+    'RUA','AV','CEP','BRASIL','PEDIDO','NOTA',
+    'FISCAL','REMETENTE','EMAIL','TELEFONE'
+  ];
 
-    if (typeof Tesseract === 'undefined') {
-        console.error('ExclusiveScanner: Tesseract.js global not loaded.');
-        return ''; 
-    }
+  private readonly TRANSPORTADORAS = [
+    'CORREIOS','JADLOG','LOGGI','MERCADO LIVRE',
+    'SHOPEE','FEDEX','DHL','AZUL'
+  ];
 
-    // 1. TENTATIVA LOCAL
-    try {
-        const worker = await Tesseract.createWorker('por', 1, {
-          workerPath: this.WORKER_LOCAL,
-          corePath: this.CORE_LOCAL,
-          logger: () => {}, 
-          errorHandler: () => {} 
+  private readonly TRACKING_PATTERNS = [
+    /\b[A-Z]{2}\d{9}[A-Z]{2}\b/,
+    /\b\d{15,22}\b/,
+    /\b[A-Z0-9]{10,20}\b/
+  ];
+
+  private worker: any = null;
+  private workerReady: Promise<void> | null = null;
+  private inactivityTimeout: any = null;
+
+  constructor() {
+    // Não inicializa no construtor para economizar memória no boot
+  }
+
+  private initWorker() {
+    if (!this.workerReady) {
+      this.workerReady = (async () => {
+        this.worker = await Tesseract.createWorker('por', 1);
+        await this.worker.setParameters({
+          tessedit_pageseg_mode: '6',
+          preserve_interword_spaces: '1'
         });
-        
-        // Parâmetros otimizados para texto misto (logística)
-        await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-./: ',
-          tessedit_pageseg_mode: '6' // Assume bloco uniforme
-        });
-
-        const { data } = await worker.recognize(source);
-        await worker.terminate();
-        
-        return data.text.toUpperCase();
-
-    } catch (e: any) {
-        if (!navigator.onLine) {
-            console.warn('ExclusiveScanner: Offline e worker local falhou.');
-            return ''; 
-        }
-        console.warn('ExclusiveScanner: Falha no Worker Local. Tentando CDN...', e);
-        
-        try {
-            const workerCDN = await Tesseract.createWorker('por', 1, {
-                workerPath: this.WORKER_CDN,
-                corePath: this.CORE_CDN,
-                errorHandler: () => {}
-            });
-            const { data } = await workerCDN.recognize(source);
-            await workerCDN.terminate();
-            return data.text.toUpperCase();
-        } catch (cdnError) {
-            console.error('ExclusiveScanner: Falha Fatal (Local + CDN).', cdnError);
-            return '';
-        }
+      })();
     }
+    this.resetInactivityTimeout();
+    return this.workerReady;
   }
 
-  /* ==========================
-     HISTÓRICO LOCAL (MEMORY)
-     ========================== */
-  private load(key: string): string[] {
-    try {
-        return JSON.parse(localStorage.getItem(key) || '[]');
-    } catch { return []; }
-  }
-
-  private learn(key: string, value: string) {
-    if (!value || value.length < 3) return;
-    const list = this.load(key);
-    if (!list.includes(value)) {
-      list.push(value);
-      localStorage.setItem(key, JSON.stringify(list));
+  private resetInactivityTimeout() {
+    if (this.inactivityTimeout) {
+      clearTimeout(this.inactivityTimeout);
     }
-  }
-
-  /* ==========================
-     EXTRAÇÃO + CORREÇÃO (TITANIUM SHIELD)
-     ========================== */
-  private extract(text: string) {
-    if (!text) return { destinatario: '', transportadora: '' };
-
-    const rawLines = text.split('\n');
-    const validLines: string[] = [];
-
-    // --- FASE 1: FILTRAGEM AGRESSIVA (IMUNIDADE) ---
-    for (const rawLine of rawLines) {
-        const line = rawLine.trim().toUpperCase();
-        if (line.length < 3) continue;
-
-        // Se a linha contiver QUALQUER termo da Blacklist, ela morre aqui.
-        const isToxic = IMMUTABLE_IGNORE_LIST.some(badTerm => line.includes(badTerm));
-        if (!isToxic) {
-            validLines.push(line);
-        }
-    }
-
-    const learnedT = this.load(STORAGE.transportadoras);
-    const allCarriers = [...BASE_TRANSPORTADORAS, ...learnedT];
-
-    let destinatario = '';
-    let transportadora = '';
-
-    for (const l of validLines) {
-      // 1. EXTRAÇÃO DE DESTINATÁRIO
-      if (!destinatario) {
-          // Heurística secundária: Linha isolada que sobreviveu à purga
-          // Se não tem números (evita códigos) e é longa o suficiente
-          if (l.length > 5 && l.length < 40 && !/\d/.test(l)) { 
-             if (l.split(' ').length >= 2) {
-                 destinatario = l;
-             }
-          }
+    // Termina o worker após 15 segundos de inatividade para liberar memória (evita crash no carregador)
+    this.inactivityTimeout = setTimeout(async () => {
+      if (this.worker) {
+        await this.worker.terminate();
+        this.worker = null;
+        this.workerReady = null;
       }
+    }, 15000);
+  }
 
-      // 2. EXTRAÇÃO DE TRANSPORTADORA
-      if (!transportadora) {
-          for (const t of allCarriers) {
-            if (l.includes(t)) {
-              transportadora = t;
-              break;
-            }
-          }
-      }
+  /* ---------------- OCR ---------------- */
+
+  async runOCR(image: string): Promise<string> {
+    await this.initWorker();
+
+    const { data } = await this.worker.recognize(
+      `data:image/jpeg;base64,${image}`
+    );
+
+    this.resetInactivityTimeout();
+    return data.text.toUpperCase();
+  }
+
+  /* ---------------- Extractors ---------------- */
+
+  private extractTracking(text: string) {
+    for (const r of this.TRACKING_PATTERNS) {
+      const m = text.match(r);
+      if (m) return m[0];
+    }
+    return '';
+  }
+
+  private extractLocation(lines: string[]) {
+
+    let bloco = '';
+    let apartamento = '';
+
+    for (const l of lines) {
+
+      const b = l.match(/\b(BL|BLOCO)\s?([A-Z0-9]+)/);
+      if (b) bloco = b[2];
+
+      const a = l.match(/\b(AP|APT|APTO)\s?(\d{1,4})/);
+      if (a) apartamento = a[2];
     }
 
-    return { destinatario, transportadora };
+    return { bloco, apartamento };
   }
 
-  /* ==========================
-     SCORE + HEATMAP
-     ========================== */
-  private confidence(data: { destinatario: string; transportadora: string }) {
-    let c = 0;
-    if (data.destinatario.length >= 6) c += 40;
-    if (data.transportadora) c += 40;
-    
-    const learnedResidents = this.load(STORAGE.moradores);
-    if (learnedResidents.some(r => data.destinatario.includes(r) || r.includes(data.destinatario))) c += 20;
-    
-    return Math.min(c, 100);
+  private extractCarrier(lines: string[]) {
+    return lines.find(l =>
+      this.TRANSPORTADORAS.some(t => l.includes(t))
+    ) || '';
   }
 
-  private heatmap(score: number): 'green' | 'yellow' | 'red' {
-    if (score >= 75) return 'green';
-    if (score >= 40) return 'yellow';
-    return 'red';
+  private extractName(lines: string[]) {
+    return lines.find(l =>
+      !/\d/.test(l) &&
+      l.length > 5 &&
+      !this.IGNORE.some(i => l.includes(i))
+    ) || '';
   }
 
-  /* ==========================
-     ENGINE PRINCIPAL
-     ========================== */
-  async processScan(image: Blob | string): Promise<ScanResult> {
-    // --- PROTOCOLO DE RESFRIAMENTO PARA RELEITURA ---
-    // Pausa tática de 200ms antes de iniciar o Tesseract.
-    // Isso permite que o device dissipe o calor gerado pela câmera antes de
-    // iniciar o pico de CPU do OCR local.
-    await new Promise(resolve => setTimeout(resolve, this.RELEITURA_THERMAL_YIELD_MS));
+  /* ---------------- PROCESS ---------------- */
+
+  async processScan(image: string): Promise<ScanResult> {
 
     const start = performance.now();
 
-    try {
-      const text = await Promise.race([
-        this.runOCR(image),
-        new Promise<string>((resolve) => setTimeout(() => resolve('TIMEOUT'), this.TIME_LIMIT))
-      ]);
+    const text = await this.runOCR(image);
 
-      if (text === 'TIMEOUT' || !text) {
-          if (text === 'TIMEOUT') console.warn('[ExclusiveScanner] Tempo limite de leitura excedido.');
-          
-          return {
-              destinatario: '', transportadora: '', confidence: 0,
-              heatmap: 'red', status: 'invalid', timeMs: performance.now() - start,
-              rawText: ''
-          };
-      }
+    const lines = text
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 3);
 
-      const extracted = this.extract(text);
-      const score = this.confidence(extracted);
-      const heatmap = this.heatmap(score);
+    const tracking = this.extractTracking(text);
+    const loc = this.extractLocation(lines);
+    const transportadora = this.extractCarrier(lines);
+    const destinatario = this.extractName(lines);
 
-      if (score >= 90) {
-        this.learn(STORAGE.moradores, extracted.destinatario);
-        this.learn(STORAGE.transportadoras, extracted.transportadora);
-      }
+    let score = 0;
 
-      return {
-        ...extracted,
-        confidence: score,
-        heatmap,
-        status: score >= 75 ? 'valid' : score >= 40 ? 'fallback' : 'invalid',
-        timeMs: performance.now() - start,
-        rawText: text
-      };
+    if (loc.bloco) score += 40;
+    if (loc.apartamento) score += 40;
+    if (tracking) score += 10;
+    if (destinatario) score += 10;
 
-    } catch (e) {
-      console.error('[ExclusiveScanner] Falha no processamento:', e);
-      return {
-          destinatario: '', transportadora: '', confidence: 0, 
-          heatmap: 'red', status: 'invalid', timeMs: performance.now() - start,
-          rawText: ''
-      };
-    }
+    return {
+      tracking,
+      destinatario,
+      transportadora,
+      bloco: loc.bloco,
+      apartamento: loc.apartamento,
+      confidence: score,
+      status: score >= 80 ? 'valid' : 'fallback',
+      heatmap:
+        score >= 80 ? 'green' :
+        score >= 50 ? 'yellow' : 'red',
+      timeMs: performance.now() - start
+    };
+  }
+
+  public filterBlacklist(text: string): string {
+    return text;
+  }
+
+  public assistWithRegex(text: string): { destinatario?: string; transportadora?: string; rastreio?: string; bloco?: string; apto?: string } {
+    return {};
   }
 }

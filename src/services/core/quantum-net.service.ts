@@ -113,7 +113,7 @@ export class QuantumNetService implements OnDestroy {
         this.currentServerIndex = 0;
     }
 
-    let serverUrl = SIGNALING_SERVERS[this.currentServerIndex];
+    const serverUrl = SIGNALING_SERVERS[this.currentServerIndex];
     
     if (!serverUrl || (!serverUrl.startsWith('ws://') && !serverUrl.startsWith('wss://'))) {
         this.handleReconnection();

@@ -7,11 +7,11 @@ export function deepFreeze<T>(obj: T): T {
   if (!environment.enableImmutabilityChecks) return obj;
 
   // Congela o objeto atual (nível raso)
-  Object.freeze(obj as any);
+  Object.freeze(obj as object);
 
   // Percorre propriedades para congelamento recursivo (Deep Freeze)
   Object.getOwnPropertyNames(obj).forEach((prop) => {
-    const value: any = (obj as any)[prop];
+    const value = (obj as Record<string, unknown>)[prop];
     // Se a propriedade for um objeto e ainda não estiver congelada, recurse.
     if (value && typeof value === 'object' && !Object.isFrozen(value)) {
       deepFreeze(value);

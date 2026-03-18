@@ -35,7 +35,7 @@ export class PdfService {
 
   /* ================= ENGINE DE PDF MASTER (LAYOUT ADAPTATIVO) ================= */
 
-  private async criarPDFModerno(
+  public async criarPDFModerno(
       tituloDireita: string,
       idControle: string,
       textoResponsabilidade: string,
@@ -177,11 +177,11 @@ export class PdfService {
 
         // Grid Logic (2 colunas)
         const colCount = 2;
-        const gap = 5;
+        const gap = 4;
         const cellWidth = (totalAvailableWidth - (gap * (colCount - 1))) / colCount;
         
-        // REDUZIDO PARA 35mm PARA CABER MAIS (Até 10 por página)
-        const cellHeight = 35; 
+        // Ajuste dinâmico para caber até 10 etiquetas (5 linhas) sem quebrar página
+        const cellHeight = itensVisual.length > 6 ? 24 : 35; 
 
         let currentX = MARGIN;
         
@@ -474,13 +474,32 @@ export class PdfService {
       signatureBase64: string,
       itemsGrupo?: Encomenda[]
   ): Promise<{ blob: Blob, url: string, hash: string }> {
-    return this.criarPDFSibiose(
+    const dataFormatada = encomenda.dataSaida ? new Date(encomenda.dataSaida).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+    const textoResponsabilidade = `Certifica-se, para os devidos fins, a entrega definitiva do(s) volume(s) referente(s) ao protocolo em epígrafe, retirado(s) em ${dataFormatada} por ${receiverName.toUpperCase()}. A aposição da assinatura digital abaixo confirma o recebimento em ordem e encerra a responsabilidade de custódia da portaria sobre o(s) referido(s) item(ns).`;
+
+    const colEsq = [
+        { label: 'Gerado Por', value: porteiro.nome },
+        { label: 'Data Retirada', value: dataFormatada },
+        { label: 'Unidade', value: `${encomenda.bloco || '-'} - ${encomenda.apto || '-'}` },
+        { label: 'Rastreio', value: encomenda.codigoRastreio || 'N/A' }
+    ];
+
+    const colDir = [
+        { label: 'Retirado Por', value: receiverName.toUpperCase() },
+        { label: 'Destinatário', value: encomenda.destinatarioNome },
+        { label: 'ID Transação', value: encomenda.id.substring(0, 8) + '...' }
+    ];
+
+    const itens = itemsGrupo && itemsGrupo.length > 0 ? itemsGrupo : [encomenda];
+
+    return this.criarPDFModerno(
         'COMPROVANTE DE RETIRADA',
-        encomenda,
-        porteiro,
-        receiverName,
-        signatureBase64,
-        encomenda.id
+        encomenda.id,
+        textoResponsabilidade,
+        colEsq,
+        colDir,
+        itens,
+        signatureBase64
     );
   }
 
@@ -488,143 +507,109 @@ export class PdfService {
       encomenda: Encomenda, 
       porteiro: Porteiro
   ): Promise<{ blob: Blob, url: string, hash: string }> {
-    return this.criarPDFSibiose(
+    const dataFormatada = new Date().toLocaleString('pt-BR');
+    const textoResponsabilidade = `Certifica-se, para os devidos fins, o CANCELAMENTO do registro do volume referente ao protocolo em epígrafe, processado em ${dataFormatada} pelo operador ${porteiro.nome.toUpperCase()}. Este documento invalida a entrada original e encerra a responsabilidade de custódia da portaria sobre o referido item.`;
+
+    const colEsq = [
+        { label: 'Cancelado Por', value: porteiro.nome },
+        { label: 'Data Cancelamento', value: dataFormatada },
+        { label: 'Unidade', value: `${encomenda.bloco || '-'} - ${encomenda.apto || '-'}` },
+        { label: 'Rastreio', value: encomenda.codigoRastreio || 'N/A' }
+    ];
+
+    const colDir = [
+        { label: 'Transportadora', value: (encomenda.transportadora || 'N/A').toUpperCase() },
+        { label: 'Destinatário', value: encomenda.destinatarioNome },
+        { label: 'ID Transação', value: encomenda.id.substring(0, 8) + '...' }
+    ];
+
+    return this.criarPDFModerno(
         'COMPROVANTE DE CANCELAMENTO',
-        encomenda,
-        porteiro,
-        'N/A',
-        '',
-        encomenda.id
+        encomenda.id,
+        textoResponsabilidade,
+        colEsq,
+        colDir,
+        [encomenda],
+        undefined
     );
   }
 
-  private async criarPDFSibiose(
-      titulo: string,
-      encomenda: Encomenda,
-      porteiro: Porteiro,
-      receiverName: string,
-      signatureBase64: string,
-      idControle: string
-  ): Promise<{ blob: Blob, url: string, hash: string }> {
-      const doc = new jsPDF();
-      const PAGE_WIDTH = 210;
-      const MARGIN = 15;
-      const dataRetirada = encomenda.dataSaida ? new Date(encomenda.dataSaida).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
-      const idControleFormatado = idControle.substring(0, 8).toUpperCase();
-      
-      // Header
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.text('SIMBIOSE', MARGIN, 20);
-      doc.setFontSize(10);
-      doc.text('PROTOCOLO INTELIGENTE DE GESTÃO', MARGIN, 26);
-      
-      doc.setFontSize(14);
-      doc.text(titulo, PAGE_WIDTH - MARGIN, 20, { align: 'right' });
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Emissão: ${new Date().toLocaleString('pt-BR')}`, PAGE_WIDTH - MARGIN, 26, { align: 'right' });
-      doc.text(`ID Controle: ${idControleFormatado}`, PAGE_WIDTH - MARGIN, 30, { align: 'right' });
-      
-      // Declaração
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('DECLARAÇÃO DE RESPONSABILIDADE:', MARGIN, 45);
-      doc.setFont('helvetica', 'normal');
-      const texto = `Certifica-se, para os devidos fins, a entrega definitiva do(s) volume(s) referente(s) ao protocolo em epígrafe, retirado(s) em ${dataRetirada} por ${receiverName.toUpperCase()}. A aposição da assinatura digital abaixo confirma o recebimento em ordem e encerra a responsabilidade de custódia da portaria sobre o(s) referido(s) item(ns).`;
-      const splitText = doc.splitTextToSize(texto, PAGE_WIDTH - (MARGIN * 2));
-      doc.text(splitText, MARGIN, 52);
-      
-      // Detalhes
-      let y = 80;
-      doc.setFont('helvetica', 'bold');
-      doc.text('DETALHES DO REGISTRO', MARGIN, y);
-      y += 8;
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Gerado Por: ${porteiro.nome.toUpperCase()}   Retirado Por: ${receiverName.toUpperCase()}`, MARGIN, y);
-      y += 6;
-      doc.text(`Data Retirada: ${dataRetirada}   Destinatário: ${encomenda.destinatarioNome.toUpperCase()}`, MARGIN, y);
-      y += 6;
-      doc.text(`Unidade: ${encomenda.bloco || '-'} - ${encomenda.apto || '-'}   ID Transação: ${encomenda.id.substring(0, 8)}`, MARGIN, y);
-      y += 6;
-      doc.text(`Rastreio: ${encomenda.codigoRastreio || 'Xxxxxxx'}`, MARGIN, y);
-      
-      // Evidência Visual
-      y += 15;
-      doc.setFont('helvetica', 'bold');
-      doc.text('EVIDÊNCIA VISUAL', MARGIN, y);
-      y += 5;
-      if (encomenda.fotoBase64) {
-          const dims = await this.getImageDimensions(encomenda.fotoBase64);
-          this.drawImageFit(doc, encomenda.fotoBase64, dims, MARGIN, y, 60, 40);
-      }
-      
-      // Assinatura
-      y += 50;
-      doc.setFont('helvetica', 'bold');
-      doc.text('ASSINATURA DIGITAL', MARGIN, y);
-      y += 5;
-      if (signatureBase64) {
-          const cleanSig = signatureBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-          try {
-              doc.addImage(`data:image/png;base64,${cleanSig}`, 'PNG', MARGIN, y, 50, 25);
-          } catch(e) {}
-      }
-      
-      y += 30;
-      doc.setFont('helvetica', 'normal');
-      doc.text('Confirmado Eletronicamente', MARGIN, y);
-      
-      // Rodapé
-      const footerY = 270;
-      doc.setFont('helvetica', 'bold');
-      doc.text('ZELARE PRESTADORA', PAGE_WIDTH/2, footerY, { align: 'center' });
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Gerado via Protocolo Inteligente Simbiose', PAGE_WIDTH/2, footerY + 5, { align: 'center' });
-      
-      const rawBuffer = doc.output('arraybuffer');
-      const hash = await this.gerarHash(rawBuffer);
-      
-      doc.setFontSize(6);
-      doc.text(`HASH SHA-256: ${hash}`, PAGE_WIDTH/2, footerY + 10, { align: 'center' });
-      doc.text(`UUID UNIQ: ${encomenda.id} | INTEGRIDADE VERIFICADA | ${new Date().toISOString()}`, PAGE_WIDTH/2, footerY + 13, { align: 'center' });
-      
-      const blob = new Blob([rawBuffer], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      
-      return { blob, url, hash };
-  }
+
 
   
-  public async generateDailyOperationalReport(stats: any, dateStr: string): Promise<{ blob: Blob, url: string }> { return { blob: new Blob(), url: '' }; }
+  public async generateDailyOperationalReport(stats: any, dateStr: string): Promise<{ blob: Blob, url: string, hash: string }> {
+    const textoResponsabilidade = `Este documento certifica o fechamento operacional diário referente ao dia ${dateStr}. Os dados abaixo refletem as movimentações registradas no sistema Simbiose até o momento da emissão deste relatório.`;
+
+    const colEsq = [
+        { label: 'Data do Relatório', value: dateStr },
+        { label: 'Total Entradas', value: String(stats.entradas || 0) }
+    ];
+
+    const colDir = [
+        { label: 'Total Saídas', value: String(stats.saidas || 0) },
+        { label: 'Produtividade', value: stats.detalhePorteiros ? 'Ver Detalhes Abaixo' : 'N/A' }
+    ];
+
+    // Aqui podemos usar o campo de texto de responsabilidade para mostrar a produtividade também
+    const textoCompleto = `${textoResponsabilidade}\n\nPRODUTIVIDADE POR OPERADOR:\n${stats.detalhePorteiros || 'Nenhum dado registrado.'}`;
+
+    return this.criarPDFModerno(
+        'RELATÓRIO DIÁRIO OPERACIONAL',
+        `REP-${Date.now()}`,
+        textoCompleto,
+        colEsq,
+        colDir,
+        [],
+        undefined
+    );
+  }
   public async generateInvoice(plano: string, valor: string, cliente: string, cpf: string, condominio: string, nsu: string): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
   public async generateBatchEntryReceipt(items: Encomenda[], porteiro: Porteiro, courierName: string, signatureBase64: string): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
   private async criarPDFListaModerno(
       titulo: string,
       colunas: { header: string, dataKey: string, width: number }[],
       dados: any[],
-      user: Porteiro
+      user: Porteiro,
+      orientation: 'portrait' | 'landscape' = 'portrait'
   ): Promise<{ blob: Blob, url: string, hash: string }> {
-      const doc = new jsPDF();
-      const PAGE_WIDTH = 210;
+      const doc = new jsPDF(orientation);
+      const PAGE_WIDTH = orientation === 'landscape' ? 297 : 210;
+      const PAGE_HEIGHT = orientation === 'landscape' ? 210 : 297;
       const MARGIN = 15;
       const TABLE_WIDTH = PAGE_WIDTH - (MARGIN * 2);
       
-      // --- CABEÇALHO ---
+      // --- CABEÇALHO (DARK + ORANGE STRIP) ---
       doc.setFillColor(this.COLOR_DARK_BG[0], this.COLOR_DARK_BG[1], this.COLOR_DARK_BG[2]);
-      doc.rect(0, 0, PAGE_WIDTH, 35, 'F');
+      doc.rect(0, 0, PAGE_WIDTH, 35, 'F'); // Fundo Escuro
+
+      doc.setFillColor(this.COLOR_ORANGE[0], this.COLOR_ORANGE[1], this.COLOR_ORANGE[2]);
+      doc.rect(0, 35, PAGE_WIDTH, 2, 'F'); // Faixa Laranja
+
+      // Logo / Título Esquerda
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.text(titulo.toUpperCase(), MARGIN, 20);
-      doc.setFontSize(9);
+      doc.setFontSize(22);
+      doc.text('SIMBIOSE', MARGIN, 15);
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
       doc.setTextColor(200, 200, 200);
-      doc.text(`Gerado por: ${user.nome} | Data: ${new Date().toLocaleString('pt-BR')}`, MARGIN, 28);
+      doc.text('PROTOCOLO INTELIGENTE DE GESTÃO', MARGIN, 22);
+
+      // Título Direita
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(titulo.toUpperCase(), PAGE_WIDTH - MARGIN, 14, { align: 'right' });
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 200, 200);
+      doc.text(`Emissão: ${new Date().toLocaleString('pt-BR')}`, PAGE_WIDTH - MARGIN, 20, { align: 'right' });
+      doc.text(`Gerado por: ${user.nome}`, PAGE_WIDTH - MARGIN, 25, { align: 'right' });
 
       // --- TABELA ---
-      let y = 45;
+      let y = 50;
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(10);
       
@@ -646,7 +631,7 @@ export class PdfService {
       
       // Linhas com Zebra Striping
       dados.forEach((linha, index) => {
-          if (y > 270) {
+          if (y > PAGE_HEIGHT - 27) {
               doc.addPage();
               y = 20;
           }
@@ -667,39 +652,82 @@ export class PdfService {
 
       // --- RODAPÉ ---
       const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-          doc.setPage(i);
-          doc.setFontSize(8);
-          doc.setTextColor(150, 150, 150);
-          doc.text(`Página ${i} de ${pageCount}`, PAGE_WIDTH - MARGIN - 20, 290);
-      }
-
       const rawBuffer = doc.output('arraybuffer');
       const hash = await this.gerarHash(rawBuffer);
-      const blob = new Blob([rawBuffer], { type: 'application/pdf' });
+
+      for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          
+          const footerY = PAGE_HEIGHT - 15;
+          
+          doc.setFillColor(245, 245, 245);
+          doc.rect(0, footerY - 5, PAGE_WIDTH, 20, 'F'); 
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(40, 40, 40);
+          
+          const config = this.db.appConfig();
+          let footerText = 'SISTEMA SIMBIOSE';
+          if (config.nomeCondominio && config.nomeCondominio.trim().length > 0) {
+              footerText = config.nomeCondominio.toUpperCase();
+          }
+          
+          doc.text(footerText, PAGE_WIDTH / 2, footerY, { align: 'center' });
+          
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(100, 100, 100);
+          doc.text('Gerado via Protocolo Inteligente Simbiose', PAGE_WIDTH / 2, footerY + 4, { align: 'center' });
+
+          doc.setFont('courier', 'normal');
+          doc.setFontSize(6);
+          doc.setTextColor(120, 120, 120);
+          doc.text(`HASH SHA-256: ${hash}`, PAGE_WIDTH / 2, footerY + 8, { align: 'center' });
+          doc.text(`Página ${i} de ${pageCount} | INTEGRIDADE VERIFICADA | ${new Date().toISOString()}`, PAGE_WIDTH / 2, footerY + 11, { align: 'center' });
+      }
+
+      // Re-gerar o buffer apos adicionar o rodape em todas as paginas
+      const finalBuffer = doc.output('arraybuffer');
+      const blob = new Blob([finalBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       
       return { blob, url, hash };
   }
 
   public async generateEncomendasReport(items: Encomenda[], filters: string, user: Porteiro): Promise<{ blob: Blob, url: string, hash: string }> {
+    const porteiros = this.db.porteiros();
+    const getPorteiroName = (id?: string) => {
+        if (!id) return '-';
+        if (id === 'admin') return 'Admin';
+        const p = porteiros.find(p => p.id === id);
+        return p ? p.nome : 'Desconhecido';
+    };
+
     return this.criarPDFListaModerno(
         'Relatório de Encomendas',
         [
-            { header: 'Data', dataKey: 'dataEntrada', width: 25 },
-            { header: 'Destinatário', dataKey: 'destinatarioNome', width: 40 },
-            { header: 'Unidade', dataKey: 'unidade', width: 20 },
-            { header: 'Status', dataKey: 'status', width: 25 },
-            { header: 'Rastreio', dataKey: 'codigoRastreio', width: 30 },
-            { header: 'Quem Recebeu', dataKey: 'quemRetirou', width: 40 }
+            { header: 'Data', dataKey: 'dataEntrada', width: 22 },
+            { header: 'Destinatário', dataKey: 'destinatarioNome', width: 50 },
+            { header: 'Unidade', dataKey: 'unidade', width: 22 },
+            { header: 'Status', dataKey: 'status', width: 22 },
+            { header: 'Estado', dataKey: 'condicaoFisica', width: 22 },
+            { header: 'Rastreio', dataKey: 'codigoRastreio', width: 21 },
+            { header: 'Cadastrado Por', dataKey: 'porteiroEntrada', width: 35 },
+            { header: 'Liberado Por', dataKey: 'porteiroSaida', width: 35 },
+            { header: 'Quem Retirou', dataKey: 'quemRetirou', width: 38 }
         ],
         items.map(i => ({ 
             ...i, 
             dataEntrada: new Date(i.dataEntrada).toLocaleDateString('pt-BR'), 
             unidade: `${i.bloco}-${i.apto}`,
+            condicaoFisica: i.condicaoFisica || 'Intacta',
+            porteiroEntrada: getPorteiroName(i.porteiroEntradaId),
+            porteiroSaida: getPorteiroName(i.porteiroSaidaId),
             quemRetirou: i.quemRetirou || '-'
         })),
-        user
+        user,
+        'landscape'
     );
   }
 

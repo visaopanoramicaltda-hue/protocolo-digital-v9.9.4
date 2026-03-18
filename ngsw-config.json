@@ -1,3 +1,4 @@
+
 {
   "$schema": "./node_modules/@angular/service-worker/config/schema.json",
   "index": "/index.html",
@@ -10,8 +11,6 @@
           "/index.html",
           "/manifest.webmanifest",
           "/icon.svg",
-          "/icon-192x192.png",
-          "/icon-512x512.png",
           "/*.css",
           "/*.js"
         ]
@@ -23,16 +22,18 @@
       "updateMode": "prefetch",
       "resources": {
         "files": [
-          "/assets/**"
+          "/assets/**",
+          "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
         ]
       }
     },
     {
       "name": "external-assets",
-      "installMode": "prefetch",
+      "installMode": "prefetch", 
       "updateMode": "prefetch",
       "resources": {
         "urls": [
+          "https://cdn.tailwindcss.com/**",
           "https://fonts.googleapis.com/**",
           "https://fonts.gstatic.com/**",
           "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"
@@ -54,27 +55,28 @@
   ],
   "dataGroups": [
     {
-      "name": "api-config",
+      "name": "api-critical",
       "urls": [
-        "/api/config",
-        "/api/health"
-      ],
-      "cacheConfig": {
-        "maxSize": 10,
-        "maxAge": "6h",
-        "strategy": "performance"
-      }
-    },
-    {
-      "name": "api-freshness",
-      "urls": [
-        "/api/**"
+        "https://firestore.googleapis.com/**",
+        "https://identitytoolkit.googleapis.com/**"
       ],
       "cacheConfig": {
         "maxSize": 100,
-        "maxAge": "1h",
-        "strategy": "freshness",
-        "timeout": "5s"
+        "maxAge": "1d",
+        "timeout": "5s",
+        "strategy": "freshness"
+      }
+    },
+    {
+      "name": "api-offline-fallback",
+      "urls": [
+        "https://*.googleapis.com/**"
+      ],
+      "cacheConfig": {
+        "maxSize": 50,
+        "maxAge": "7d",
+        "timeout": "3s",
+        "strategy": "performance"
       }
     }
   ]

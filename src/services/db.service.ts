@@ -22,7 +22,7 @@ export interface InboxMessage {
     sourceCondo?: string;
     condoId?: string;
     actionLink?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
 }
 
 export interface LinkedCondo {
@@ -73,7 +73,7 @@ export type DbStoreName = 'porteiros' | 'moradores' | 'encomendas' | 'config' | 
 export interface DbEvent {
     type: 'CREATE' | 'UPDATE' | 'DELETE';
     store: DbStoreName;
-    data: any; // O objeto salvo ou o ID deletado
+    data: unknown; // O objeto salvo ou o ID deletado
     id: string;
     timestamp: number;
     source: 'LOCAL' | 'NETWORK';
@@ -155,7 +155,7 @@ export class DbService {
       this.onDataChange.next();
   }
 
-  private emitDbEvent(type: 'CREATE' | 'UPDATE' | 'DELETE', store: DbStoreName, data: any, id: string) {
+  private emitDbEvent(type: 'CREATE' | 'UPDATE' | 'DELETE', store: DbStoreName, data: unknown, id: string) {
       this.databaseEvent$.next({
           type,
           store,
@@ -170,14 +170,14 @@ export class DbService {
       try {
           await Promise.race([
               this.initDatabase(),
-              new Promise((_, reject) => setTimeout(() => reject('DB_TIMEOUT'), 15000))
-          ]).catch(e => console.error('DB Init Slow:', e));
+              new Promise((_, reject) => setTimeout(() => reject('DB_TIMEOUT'), 30000))
+          ]);
 
           this.initCarriers();
           this.initSenders();
           this.refreshLastBackupTime();
 
-          await this.loadLayer1_Critical().catch(e => console.error('Layer 1 Fail', e));
+          await this.loadLayer1_Critical();
           await this.loadLayer2_Operational(); 
           
           this.loadInbox();
@@ -191,6 +191,7 @@ export class DbService {
           
       } catch (e) {
           console.error('FATAL BOOT ERROR:', e);
+          this.ui.show('Erro crítico ao iniciar banco de dados. Tente recarregar.', 'ERROR');
           this.initialized.set(true); 
       }
   }
@@ -239,15 +240,45 @@ export class DbService {
   async loadLayer2_Operational() {
     const moradores = await this.getAllFromStore<Morador>('moradores');
     const encomendas = await this.getAllFromStore<Encomenda>('encomendas');
+    
+    // REPARAÇÃO AUTOMÁTICA DE DADOS (Garante que todos usem o condoId canônico do sistema)
+    const canonicalTenant = this.appConfig().condoId;
+    if (canonicalTenant) {
+        let changed = false;
+        for (const m of moradores) {
+            if (!m.condoId || m.condoId !== canonicalTenant) {
+                m.condoId = canonicalTenant;
+                await this.saveItem('moradores', m, false);
+                changed = true;
+            }
+        }
+        for (const e of encomendas) {
+            if (!e.condoId || e.condoId !== canonicalTenant) {
+                e.condoId = canonicalTenant;
+                await this.saveItem('encomendas', e, false);
+                changed = true;
+            }
+        }
+        if (changed) this.notifyChange();
+    }
+
     this.applyTenantFilter(moradores, encomendas);
   }
 
   private applyTenantFilter(allMoradores: Morador[], allEncomendas: Encomenda[]) {
       const tenant = this.currentTenantId();
-      if (tenant) {
-          this.moradores.set(allMoradores.filter(m => m.condoId === tenant));
-          this.encomendas.set(allEncomendas.filter(e => e.condoId === tenant));
+      
+      // LÓGICA DE SEGURANÇA: Se houver apenas um condomínio no banco, não filtramos.
+      // Isso evita que dados sumam se o ID do porteiro não bater exatamente com o ID dos dados,
+      // mas o ambiente for claramente de um único condomínio.
+      const uniqueCondos = new Set(allEncomendas.map(e => e.condoId).filter(id => !!id));
+      
+      if (tenant && uniqueCondos.size > 1) {
+          // Em ambientes multi-condomínio reais, aplicamos o filtro estrito
+          this.moradores.set(allMoradores.filter(m => m.condoId === tenant || !m.condoId));
+          this.encomendas.set(allEncomendas.filter(e => e.condoId === tenant || !e.condoId));
       } else {
+          // Em ambientes de condomínio único ou sem tenant, mostramos tudo para evitar perda de visibilidade
           this.moradores.set(allMoradores);
           this.encomendas.set(allEncomendas);
       }
@@ -262,7 +293,9 @@ export class DbService {
   async loadInbox() {
       const msgs = await this.getAllFromStore<InboxMessage>('inbox');
       const tenant = this.currentTenantId();
-      if (tenant) {
+      const uniqueCondos = new Set(msgs.map(m => m.condoId).filter(id => !!id));
+
+      if (tenant && uniqueCondos.size > 1) {
           this.inbox.set(msgs.filter(m => !m.condoId || m.condoId === tenant));
       } else {
           this.inbox.set(msgs);
@@ -277,6 +310,25 @@ export class DbService {
   async runMigrationRoutine() {
       const currentVer = localStorage.getItem('db_schema_version');
       if (currentVer !== this.APP_VERSION_INTERNAL) {
+          // MIGRATION: Ensure admin has a condoId
+          const porteiros = await this.getAllFromStore<Porteiro>('porteiros');
+          const admin = porteiros.find(p => p.isAdmin);
+          if (admin && !admin.condoId) {
+              admin.condoId = crypto.randomUUID();
+              await this.saveItem('porteiros', admin);
+          }
+          
+          // MIGRATION: Ensure packages have a condoId
+          if (admin && admin.condoId) {
+              const encomendas = await this.getAllFromStore<Encomenda>('encomendas');
+              for (const enc of encomendas) {
+                  if (!enc.condoId) {
+                      enc.condoId = admin.condoId;
+                      await this.saveItem('encomendas', enc);
+                  }
+              }
+          }
+          
           localStorage.setItem('db_schema_version', this.APP_VERSION_INTERNAL);
       }
   }
@@ -284,8 +336,10 @@ export class DbService {
   async loadLayer3_Archive() {
       const logs = await this.getAllFromStore<SystemLog>('logs');
       const tenant = this.currentTenantId();
-      if (tenant) {
-          this.logs.set(logs.filter(l => l.condoId === tenant));
+      const uniqueCondos = new Set(logs.map(l => l.condoId).filter(id => !!id));
+
+      if (tenant && uniqueCondos.size > 1) {
+          this.logs.set(logs.filter(l => l.condoId === tenant || !l.condoId));
       } else {
           this.logs.set(logs);
       }
@@ -293,12 +347,12 @@ export class DbService {
 
   // --- CORE CRUD (COM BROADCAST AUTOMÁTICO) ---
   
-  async saveItem(storeName: string, item: any, emitEvent = true) {
+  async saveItem(storeName: string, item: any, emitEvent = true) { // eslint-disable-line @typescript-eslint/no-explicit-any
       if (!this.db) return;
       
       // Timestamp de modificação para resolução de conflitos
       if (typeof item === 'object' && item !== null) {
-          item.lastModified = Date.now();
+          item['lastModified'] = Date.now();
       }
 
       return new Promise<void>((resolve, reject) => {
@@ -315,7 +369,7 @@ export class DbService {
       });
   }
 
-  async deleteItem(storeName: string, id: string, emitEvent = true) {
+  async deleteItem(storeName: string, id: string | number, emitEvent = true) {
       if (!this.db) return;
       return new Promise<void>((resolve, reject) => {
           const tx = this.db!.transaction(storeName, 'readwrite');
@@ -323,7 +377,7 @@ export class DbService {
           const req = store.delete(id);
           req.onsuccess = () => {
               if (emitEvent && ['porteiros', 'moradores', 'encomendas', 'config', 'inbox'].includes(storeName)) {
-                  this.emitDbEvent('DELETE', storeName as DbStoreName, null, id);
+                  this.emitDbEvent('DELETE', storeName as DbStoreName, null, id.toString());
               }
               resolve();
           };
@@ -543,7 +597,7 @@ export class DbService {
           const text = await file.text();
           const data = JSON.parse(text);
           return await this.processBackupData(data);
-      } catch (e) { return false; }
+      } catch { return false; }
   }
 
   async processBackupData(data: BackupData): Promise<boolean> {
@@ -656,7 +710,7 @@ export class DbService {
               const manuals = all.filter(b => b.timestamp !== this.AUTO_BACKUP_KEY);
               if (manuals.length > 5) {
                   const sorted = manuals.sort((a,b) => a.timestamp - b.timestamp);
-                  await this.deleteItem('internal_backups', sorted[0].timestamp as any, false);
+                  await this.deleteItem('internal_backups', sorted[0].timestamp, false);
               }
           }
       }
@@ -669,7 +723,7 @@ export class DbService {
           };
           localStorage.setItem(this.SECONDARY_BACKUP_KEY, JSON.stringify(secondary));
           this.refreshLastBackupTime();
-      } catch(e) { }
+      } catch { }
   }
 
   async restoreLatestAutoBackup(): Promise<boolean> {
@@ -699,8 +753,8 @@ export class DbService {
     if (this.db) return Promise.resolve(); 
     return new Promise<void>((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-      request.onupgradeneeded = (event: any) => {
-        const db = event.target.result;
+      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        const db = (event.target as IDBOpenDBRequest).result;
         ['porteiros', 'moradores', 'encomendas', 'logs', 'config', 'internal_backups', 'sys_handles', 'inbox', 'user_credentials'].forEach(store => {
             if (!db.objectStoreNames.contains(store)) {
                 const keyPath = store === 'sys_handles' ? 'id' : (store === 'internal_backups' ? 'timestamp' : 'id');
@@ -708,8 +762,8 @@ export class DbService {
             }
         });
       };
-      request.onsuccess = (event: any) => { this.db = event.target.result; resolve(); };
-      request.onerror = (event: any) => { console.error('[DBService] DB Error:', event); resolve(); }; 
+      request.onsuccess = (event: Event) => { this.db = (event.target as IDBOpenDBRequest).result; resolve(); };
+      request.onerror = (event: Event) => { console.error('[DBService] DB Error:', event); reject((event.target as IDBOpenDBRequest).error); }; 
     });
   }
   
@@ -730,7 +784,7 @@ export class DbService {
           this.appConfig.set({ id: 'main_config', ocrTemperature: 0.3, ocrPromptMode: 'BALANCED', autoCorrectionEnabled: true, googleClientId: '', scannerFPS: 15, activePlan: 'PENDENTE', condoId: crypto.randomUUID(), kioskMode: false, adminFingerprintRegistered: false });
           resolve();
         };
-        tx.onerror = (event) => reject();
+        tx.onerror = () => reject();
       });
     } catch (e) { return Promise.reject(e); }
   }

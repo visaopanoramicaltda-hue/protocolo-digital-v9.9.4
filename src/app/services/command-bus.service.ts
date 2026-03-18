@@ -12,7 +12,7 @@ export type CommandScope = 'greeting' | 'user' | 'morador';
 export interface Command {
   scope: CommandScope;
   action: 'load' | 'add' | 'update' | 'delete' | string;
-  payload?: any;
+  payload?: unknown;
 }
 
 @Injectable({
@@ -34,12 +34,11 @@ export class CommandBusService {
         this.handleMorador(cmd.action, cmd.payload);
         break;
       default:
-        const _exhaustiveCheck: never = cmd.scope as never;
         throw new Error(`Escopo desconhecido: ${cmd.scope}`);
     }
   }
 
-  private handleGreeting(action: string, payload?: any): void {
+  private handleGreeting(action: string, payload?: unknown): void {
     switch (action) {
       case 'load':
         this.store.dispatch(loadGreetings());
@@ -53,7 +52,7 @@ export class CommandBusService {
     }
   }
 
-  private handleMorador(action: string, payload?: any): void {
+  private handleMorador(action: string, payload?: unknown): void {
     switch (action) {
         case 'load':
             this.store.dispatch(loadMoradores());

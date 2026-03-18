@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { UiService } from './ui.service';
 import { DbService, InboxMessage, LinkedCondo } from './db.service';
 
-declare var google: any;
+declare let google: any;
 
 @Injectable({
   providedIn: 'root'

@@ -271,6 +271,7 @@ export class AppComponent implements OnDestroy, OnInit {
   gemini = inject(GeminiService); 
   deepSeek = inject(DeepSeekService); 
   sessionGuard = inject(SingleSessionService); 
+  backPressService = inject(BackPressService);
   private router = inject(Router);
   
   // Update State
@@ -279,7 +280,7 @@ export class AppComponent implements OnDestroy, OnInit {
   releaseNotesData = signal<{version: string, changes: string[]}>({version: '', changes: []});
   
   // Initialization State
-  initStatus = signal<'loading' | 'error' | 'ready'>('loading');
+  initStatus = signal<'loading' | 'error' | 'ready'>('ready');
   initMessage = signal('');
   isRouteLoading = signal(false);
   
@@ -313,8 +314,8 @@ export class AppComponent implements OnDestroy, OnInit {
   });
   
   private restorationAttempted = false;
-  private heartbeatInterval: any;
-  private safetyTimeout: any;
+  private heartbeatInterval: NodeJS.Timeout | number | null = null;
+  private safetyTimeout: NodeJS.Timeout | number | null = null;
   
   // REGRA DE OURO: VERSÃO ATUAL DO APP
   readonly APP_VERSION_TAG = '9.9.4';
@@ -411,6 +412,15 @@ export class AppComponent implements OnDestroy, OnInit {
         this.initStatus.set('ready');
       }
     });
+
+    // Handle hardware back button
+    window.addEventListener('popstate', () => {
+      if (this.backPressService.handleBackPress()) {
+        // A handler consumed the back press (e.g., closed a modal).
+        // Push the state back to prevent actual navigation.
+        history.pushState(null, '', window.location.href);
+      }
+    });
   }
 
   onPullStart(event: TouchEvent) {
@@ -440,10 +450,10 @@ export class AppComponent implements OnDestroy, OnInit {
       try {
           if (document.exitFullscreen) {
               document.exitFullscreen().catch(() => {});
-          } else if ((document as any).webkitExitFullscreen) {
+          } else if (typeof (document as any).webkitExitFullscreen === 'function') {
               (document as any).webkitExitFullscreen();
           }
-      } catch (e) {}
+      } catch { }
   }
 
   // --- TOAST SWIPE LOGIC ---
@@ -539,7 +549,7 @@ export class AppComponent implements OnDestroy, OnInit {
           if (this.quantumNet.status() === 'CONECTADO') {
               const user = this.auth.currentUser();
               const config = this.db.appConfig();
-              let nodeIdentity = config.nomeCondominio || user?.nome || 'Node Desconhecido';
+              const nodeIdentity = config.nomeCondominio || user?.nome || 'Node Desconhecido';
               this.quantumNet.broadcastTelemetry({
                   nodeName: nodeIdentity,
                   plan: this.auth.activePlan(),

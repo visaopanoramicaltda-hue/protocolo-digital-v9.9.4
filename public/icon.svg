@@ -1,15 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <!-- Leather Texture Gradient -->
-    <radialGradient id="leather" cx="50%" cy="45%" r="70%" fx="50%" fy="40%">
+    <radialGradient id="leather" cx="50%" cy="50%" r="75%" fx="30%" fy="30%">
       <stop offset="0%" stop-color="#5c3a21" />
-      <stop offset="50%" stop-color="#3a2210" />
-      <stop offset="100%" stop-color="#1a0c04" />
-    </radialGradient>
-    <!-- Edge Shadow Gradient -->
-    <radialGradient id="shadow" cx="50%" cy="50%" r="50%">
-      <stop offset="70%" stop-color="transparent" />
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.6" />
+      <stop offset="60%" stop-color="#3a2210" />
+      <stop offset="100%" stop-color="#1f1005" />
     </radialGradient>
     <!-- Gold Foil Gradient -->
     <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -20,42 +15,29 @@
       <stop offset="100%" stop-color="#aa771c" />
     </linearGradient>
   </defs>
-
-  <!-- Dark Background -->
-  <rect x="0" y="0" width="512" height="512" rx="64" fill="#0a0604" />
-
-  <!-- Main Cover -->
-  <rect x="24" y="24" width="464" height="464" rx="48" fill="url(#leather)" />
-
-  <!-- Edge Shadow Overlay -->
-  <rect x="24" y="24" width="464" height="464" rx="48" fill="url(#shadow)" />
-
-  <!-- Inner Border (Stitching) -->
-  <rect x="56" y="56" width="400" height="400" rx="32" fill="none" stroke="#a67c52" stroke-width="3" stroke-dasharray="12, 8" opacity="0.5" />
-
-  <!-- Title: PROTOCOLO -->
-  <text x="256" y="195" font-family="Georgia, 'Times New Roman', serif" font-size="36" font-weight="normal" letter-spacing="6" fill="url(#gold)" text-anchor="middle" opacity="0.95">PROTOCOLO</text>
-
-  <!-- Title: INTELIGENTE -->
-  <text x="256" y="245" font-family="Georgia, 'Times New Roman', serif" font-size="48" font-weight="bold" letter-spacing="3" fill="url(#gold)" text-anchor="middle">INTELIGENTE</text>
-
-  <!-- Central Emblem Circle -->
-  <circle cx="256" cy="310" r="28" fill="none" stroke="url(#gold)" stroke-width="2.5" opacity="0.85" />
-
-  <!-- Central Emblem: Scale of Justice Symbol -->
-  <g transform="translate(256, 310)" fill="url(#gold)" opacity="0.85">
-    <!-- Pillar -->
-    <rect x="-2" y="-14" width="4" height="20" />
-    <!-- Base -->
-    <rect x="-8" y="6" width="16" height="3" rx="1" />
-    <!-- Beam -->
-    <rect x="-14" y="-14" width="28" height="2.5" rx="1" />
-    <!-- Left Pan -->
-    <path d="M -14 -12 Q -18 -2, -10 -2 Q -6 -2, -14 -12" />
-    <!-- Right Pan -->
-    <path d="M 14 -12 Q 18 -2, 10 -2 Q 6 -2, 14 -12" />
-  </g>
-
-  <!-- Bottom Text: TOQUE PARA ABRIR -->
-  <text x="256" y="400" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="normal" letter-spacing="4" fill="url(#gold)" text-anchor="middle" opacity="0.7">TOQUE PARA ABRIR</text>
+  
+  <!-- Main Cover (Full Bleed for Icon) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#leather)" />
+  
+  <!-- Spine Shadow & Highlight (Left side) -->
+  <rect x="0" y="0" width="80" height="512" rx="0" fill="#1f1005" opacity="0.7" />
+  <line x1="80" y1="0" x2="80" y2="512" stroke="#110802" stroke-width="12" opacity="0.9" />
+  <line x1="88" y1="0" x2="88" y2="512" stroke="#ffffff" stroke-width="2" opacity="0.15" />
+  
+  <!-- Stitching -->
+  <rect x="32" y="32" width="448" height="448" rx="80" fill="none" stroke="#a67c52" stroke-width="6" stroke-dasharray="16, 12" opacity="0.85" />
+  
+  <!-- Bookmark Ribbon -->
+  <path d="M 360 0 L 420 0 L 420 512 L 390 470 L 360 512 Z" fill="#8b0000" />
+  <path d="M 360 0 L 420 0 L 420 512 L 390 470 L 360 512 Z" fill="none" stroke="#4a0000" stroke-width="4" />
+  
+  <!-- Embossed Logo / Text (Gold Foil) -->
+  <circle cx="256" cy="256" r="110" fill="none" stroke="url(#gold)" stroke-width="8" opacity="0.9" />
+  <circle cx="256" cy="256" r="90" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.8" />
+  
+  <!-- Simbiose 'S' -->
+  <text x="256" y="300" font-family="Georgia, serif" font-size="140" font-weight="bold" fill="url(#gold)" text-anchor="middle">S</text>
+  
+  <!-- Simbiose Text -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="28" font-weight="bold" letter-spacing="8" fill="url(#gold)" text-anchor="middle" opacity="0.9">SIMBIOSE</text>
 </svg>

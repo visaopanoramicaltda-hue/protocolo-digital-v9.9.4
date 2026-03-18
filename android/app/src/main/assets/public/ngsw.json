@@ -1,0 +1,93 @@
+{
+  "configVersion": 1,
+  "timestamp": 1773749967643,
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [
+        "/chunk-7QFA4GY7.js",
+        "/chunk-FK6H3RFT.js",
+        "/chunk-HFUUKKBZ.js",
+        "/chunk-I4X7IUYB.js",
+        "/chunk-KAT7YFEL.js",
+        "/index.html",
+        "/main-ZJU764EP.js"
+      ],
+      "patterns": []
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [],
+      "patterns": []
+    },
+    {
+      "name": "external-assets",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [],
+      "patterns": [
+        "https:\\/\\/cdn\\.tailwindcss\\.com\\/.*",
+        "https:\\/\\/fonts\\.googleapis\\.com\\/.*",
+        "https:\\/\\/fonts\\.gstatic\\.com\\/.*",
+        "https:\\/\\/cdn\\.jsdelivr\\.net\\/npm\\/jsqr@1\\.4\\.0\\/dist\\/jsQR\\.js"
+      ]
+    },
+    {
+      "name": "lazy-assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [],
+      "patterns": [
+        "https:\\/\\/cdn\\.jsdelivr\\.net\\/npm\\/tesseract\\.js@5\\/dist\\/.*",
+        "https:\\/\\/tessdata\\.projectnaptha\\.com\\/.*",
+        "https:\\/\\/www\\.transparenttextures\\.com\\/patterns\\/.*"
+      ]
+    }
+  ],
+  "dataGroups": [],
+  "hashTable": {
+    "/chunk-7QFA4GY7.js": "972b4242369b739022b8a5597a67ba0f164ee7e3",
+    "/chunk-FK6H3RFT.js": "3c538698719f1cf34410542b8c702bc484e025ee",
+    "/chunk-HFUUKKBZ.js": "f9a6de3880382efd1de61748d00e3fd9486be20a",
+    "/chunk-I4X7IUYB.js": "32118439ffeb5345599629e05cdd7cc33ebba7d9",
+    "/chunk-KAT7YFEL.js": "48e9863195e0f728461fdf0b258c4ade757973b2",
+    "/index.html": "6f301f3cccc4a0f31d2519e45e285813ddc78acd",
+    "/main-ZJU764EP.js": "dc8c5f9028ccfc82e5341d0dceec02eea48408cd"
+  },
+  "navigationUrls": [
+    {
+      "positive": true,
+      "regex": "^\\/.*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*\\.[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*\\/.*$"
+    }
+  ],
+  "navigationRequestStrategy": "performance"
+}

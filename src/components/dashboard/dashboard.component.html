@@ -146,7 +146,7 @@
               <!-- Horizontal Scroll Container (Grid Flow Col) -->
               <div class="px-4 pt-4 pb-2 flex-1 min-h-0 grid grid-flow-col auto-cols-[88vw] md:auto-cols-[380px] gap-4 snap-x snap-mandatory overflow-x-auto overflow-y-hidden orange-scrollbar items-start mb-2 z-50 relative bg-transparent">
                   
-                  @for(item of filteredEncomendas(); track item.id) {
+                  @for(item of displayedEncomendas(); track item.id) {
 <!-- THE CARD — FIDELIDADE MÁXIMA AO MOCKUP -->
 <div [id]="'pkg-' + item.id"
      class="snap-center h-full flex flex-row overflow-hidden border border-gray-100 relative group shrink-0 rounded-lg smart-render gpu-layer hover:scale-[1.02] transition-all duration-300 z-50 bg-[#050505]"
@@ -248,6 +248,15 @@
     </div>
 </div>
                   }
+                  
+                  @if (filteredEncomendas().length > displayedEncomendas().length) {
+                      <div class="snap-center h-full flex flex-col items-center justify-center shrink-0 w-[150px] px-4">
+                          <button (click)="loadMore()" class="w-full py-4 bg-white border-2 border-gray-200 text-gray-700 font-bold uppercase text-[10px] tracking-widest rounded-lg shadow-sm hover:bg-gray-50 transition-colors flex flex-col items-center gap-2">
+                              <span class="text-2xl">🔄</span>
+                              <span>Carregar Mais</span>
+                          </button>
+                      </div>
+                  }
                   <div class="w-4"></div> <!-- Spacer -->
               </div>
             }
@@ -281,7 +290,7 @@
             <div class="flex items-center justify-between h-12">
                 
                 <!-- PENDENTES -->
-                <button (click)="activeFilter.set('PENDENTE')" 
+                <button (click)="setFilter('PENDENTE')" 
                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group border-r border-[#eee]"
                         [class.bg-gradient-to-b]="activeFilter() === 'PENDENTE'"
                         [class.from-gray-300]="activeFilter() === 'PENDENTE'"
@@ -298,7 +307,7 @@
                 </button>
 
                 <!-- ENTREGUES -->
-                <button (click)="activeFilter.set('ENTREGUE')" 
+                <button (click)="setFilter('ENTREGUE')" 
                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group border-r border-[#eee]"
                         [class.bg-gradient-to-b]="activeFilter() === 'ENTREGUE'"
                         [class.from-gray-300]="activeFilter() === 'ENTREGUE'"
@@ -314,7 +323,7 @@
                 </button>
 
                 <!-- CANCELADAS -->
-                <button (click)="activeFilter.set('CANCELADA')" 
+                <button (click)="setFilter('CANCELADA')" 
                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group"
                         [class.bg-gradient-to-b]="activeFilter() === 'CANCELADA'"
                         [class.from-gray-300]="activeFilter() === 'CANCELADA'"
@@ -413,14 +422,6 @@
                                      </button>
                                  }
                              </div>
-                         }
-                         
-                         <!-- BOTÃO CADASTRAR MORADOR (Novo Fluxo) -->
-                         @if (isUnknownResident()) {
-                             <button (click)="redirectToCompleteRegistration()" 
-                                     class="mt-3 w-full py-3 bg-[#2a2320] border-2 border-[#2a2320] text-[#EAE0D5] font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-[#E86C26] hover:text-white hover:border-[#E86C26] transition-all animate-[fadeIn_0.3s]">
-                                 + Cadastrar "{{ withdrawalReceiverName() }}"
-                             </button>
                          }
                      </div>
                      
