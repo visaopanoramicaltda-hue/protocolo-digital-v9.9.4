@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Protocolo Inteligente V9.9.4 Preparação ",
+  "description": "Sistema Profissional de Portaria: V113 - 184 -  Especial  - Lançada - Transição TWA - Correção \nBlockchain, Offline-First, IA Adaptativa.",
+  "requestFramePermissions": [
+    "camera",
+    "web-auth"
+  ]
+}

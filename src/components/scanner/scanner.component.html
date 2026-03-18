@@ -1,0 +1,84 @@
+<div class="fixed inset-0 z-[5000] bg-black flex flex-col overflow-hidden">
+    <!-- Video Feed -->
+    <video #scannerVideo 
+           class="absolute inset-0 w-full h-full object-cover opacity-90" 
+           autoplay 
+           playsinline 
+           muted></video>
+    
+    <canvas #scannerCanvas class="hidden"></canvas>
+    
+    <!-- Header Controls -->
+    <div class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/80 to-transparent">
+        <button (click)="closeScanner()" 
+                class="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white active:scale-90 transition-transform">
+            <mat-icon>arrow_back</mat-icon>
+        </button>
+        
+        <div class="flex flex-col items-center">
+            <span class="text-[#E86C26] font-black text-[10px] tracking-[0.3em] uppercase drop-shadow-sm">Simbiose Neural</span>
+            <span class="text-white font-bold text-lg tracking-tight">Scanner V9</span>
+        </div>
+        
+        <button (click)="toggleFlash()" 
+                class="w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all active:scale-90"
+                [class.bg-[#E86C26]]="flashActive()"
+                [class.text-black]="flashActive()"
+                [class.border-[#E86C26]]="flashActive()"
+                [class.shadow-[0_0_20px_rgba(232,108,38,0.5)]]="flashActive()"
+                [class.bg-white/10]="!flashActive()"
+                [class.text-white]="!flashActive()"
+                [class.border-white/20]="!flashActive()">
+            <mat-icon>{{ flashActive() ? 'flash_on' : 'flash_off' }}</mat-icon>
+        </button>
+    </div>
+
+    <!-- Scanner Frame Overlay -->
+    <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+        <div class="w-72 h-72 border-2 border-white/20 rounded-[40px] relative overflow-hidden backdrop-brightness-110">
+            <!-- Scanning Line -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-[#E86C26] shadow-[0_0_20px_#E86C26] animate-scan"></div>
+            
+            <!-- Corner Accents -->
+            <div class="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-[#E86C26] rounded-tl-[30px]"></div>
+            <div class="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-[#E86C26] rounded-tr-[30px]"></div>
+            <div class="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-[#E86C26] rounded-bl-[30px]"></div>
+            <div class="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-[#E86C26] rounded-br-[30px]"></div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay -->
+    @if (isProcessingScan()) {
+        <div class="absolute inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
+            <div class="relative w-32 h-32 mb-8">
+                <div class="absolute inset-0 border-4 border-[#E86C26]/20 rounded-full"></div>
+                <div class="absolute inset-0 border-4 border-[#E86C26] rounded-full border-t-transparent animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <mat-icon class="text-[#E86C26] !text-5xl !w-12 !h-12">{{ isNeuralAnalyzing() ? 'psychology' : 'document_scanner' }}</mat-icon>
+                </div>
+            </div>
+            <h2 class="text-white text-2xl font-black tracking-tighter mb-2">
+                {{ isNeuralAnalyzing() ? 'Simbiose Analisando...' : 'Processando OCR...' }}
+            </h2>
+            <p class="text-white/40 text-[10px] font-mono uppercase tracking-[0.4em]">
+                {{ isNeuralAnalyzing() ? 'Protocolo de Segurança Ativo' : 'Extraindo Metadados Logísticos' }}
+            </p>
+            
+            <div class="w-56 h-1 bg-white/10 rounded-full mt-10 overflow-hidden">
+                <div class="h-full bg-[#E86C26] animate-progress-indefinite"></div>
+            </div>
+        </div>
+    }
+
+    <!-- Footer Instructions -->
+    <div class="absolute bottom-0 left-0 right-0 p-12 z-30 bg-gradient-to-t from-black/90 to-transparent flex flex-col items-center">
+        <p class="text-white/70 text-xs text-center max-w-[240px] font-medium leading-relaxed">
+            Posicione a etiqueta no centro do quadro para captura automática.
+        </p>
+        <div class="mt-6 flex gap-3">
+            <div class="w-1.5 h-1.5 rounded-full bg-[#E86C26] animate-pulse"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-[#E86C26]/50 animate-pulse delay-75"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-[#E86C26]/20 animate-pulse delay-150"></div>
+        </div>
+    </div>
+</div>

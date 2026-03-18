@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Protocolo Inteligente</string>
+    <string name="title_activity_main">Protocolo Inteligente</string>
+    <string name="package_name">com.seuusuario.simbiose</string>
+    <string name="custom_url_scheme">com.seuusuario.simbiose</string>
+</resources>

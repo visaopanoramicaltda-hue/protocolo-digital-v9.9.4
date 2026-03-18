@@ -1,0 +1,565 @@
+<!-- FIXED: h-[100dvh] e overflow-hidden garantem que o container principal ocupe EXATAMENTE a altura da tela -->
+<div class="flex flex-col h-[100dvh] w-full font-serif text-[#2a2320] bg-[#FDFBF7] animate-fadeIn overflow-hidden relative"> 
+      
+      <!-- BACKGROUND TEXTURE (GLOBAL) -->
+      <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-50 pointer-events-none z-0 mix-blend-multiply"></div>
+
+      <!-- === ZONA SUPERIOR FIXA (AÇÕES) === -->
+      <div class="shrink-0 bg-[#FDFBF7]/90 backdrop-blur-sm z-30 shadow-sm relative pt-2">
+          
+           <!-- 1. BIG ACTION BUTTONS (ROUNDED & ELEGANT) -->
+           <div class="px-4 pt-2 grid grid-cols-2 gap-4 mb-3">
+               <!-- BUTTON: NOVA ENCOMENDA -->
+               <button 
+                  (click)="onNewOrder()"
+                  class="group relative h-48 bg-[#F5F2ED] rounded-3xl shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden flex flex-col items-center justify-center border border-[#E5E1DA]">
+                  
+                  <div class="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')]"></div>
+                  <div class="absolute inset-4 border border-[#E5E1DA] rounded-2xl pointer-events-none"></div>
+
+                  <div class="relative z-10 flex flex-col items-center text-center px-6">
+                      <div class="w-12 h-12 rounded-full bg-white border border-[#E5E1DA] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500 shadow-sm">
+                          <mat-icon class="text-[#8B8476] !text-2xl">add</mat-icon>
+                      </div>
+                      
+                      <h3 class="font-serif text-xl text-[#4A453E] tracking-tight mb-1">Nova Encomenda</h3>
+                      <p class="text-[10px] uppercase tracking-[0.2em] text-[#8B8476] font-medium">Via Scanner Neural</p>
+                      
+                      <div class="mt-4 pt-4 border-t border-[#E5E1DA] w-16">
+                          <span class="text-[8px] font-sans text-[#A39D92] font-bold uppercase tracking-widest leading-tight">
+                              Iniciar<br>Protocolo
+                          </span>
+                      </div>
+                  </div>
+                  
+                  @if(!auth.hasActiveFeatureAccess()) { <div class="absolute top-3 right-4 text-xs z-20">🔒</div> }
+               </button>
+
+               <!-- BUTTON: CORRESPONDÊNCIA -->
+               <button (click)="handleScannerAccess('/correspondence/new')" 
+                       class="relative h-28 bg-[#6b8c9e] rounded-[30px] shadow-[0_4px_10px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center group active:scale-95 transition-transform overflow-hidden border-2 border-[#5a788a]">
+                   
+                   <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leather.png')] opacity-30 mix-blend-overlay"></div>
+                   <div class="absolute inset-1 border border-[#EAE0D5]/20 rounded-[26px]"></div>
+                   
+                   <div class="relative z-10 flex flex-col items-center">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1 text-[#EAE0D5]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                       <span class="text-xs md:text-sm font-serif font-bold text-[#EAE0D5] uppercase tracking-widest leading-tight">Correspon-<br>dência</span>
+                       <span class="text-[8px] font-sans text-[#a8d3e9] font-bold uppercase tracking-wider mt-1">Registro Manual</span>
+                   </div>
+
+                   @if(!auth.hasActiveFeatureAccess()) { <div class="absolute top-3 right-4 text-xs">🔒</div> }
+               </button>
+           </div>
+          
+           <!-- 2. SECONDARY ACTIONS ROW (RECTANGULAR & SOLID) -->
+           <div class="px-4 mb-4 grid grid-cols-10 gap-2">
+               <!-- MANUAL -->
+               <a routerLink="/manual" class="col-span-3 bg-[#1a1a1a] text-[#EAE0D5] h-10 flex items-center justify-center rounded-sm shadow-md active:translate-y-0.5 transition-transform border-b-2 border-black">
+                   <span class="text-[10px] font-bold uppercase tracking-widest font-serif">Manual</span>
+               </a>
+
+               <!-- ADMIN -->
+               <a routerLink="/admin" class="col-span-3 bg-[#1a1a1a] text-[#E86C26] h-10 flex items-center justify-center rounded-sm shadow-md active:translate-y-0.5 transition-transform border-b-2 border-black">
+                   <span class="text-[10px] font-black uppercase tracking-widest font-serif">Admin</span>
+               </a>
+
+               <!-- STATS BOX (BEIGE) -->
+               <div class="col-span-4 bg-[#EAE0D5] h-10 flex items-center justify-center rounded-sm shadow-inner border border-[#d1c4b5]">
+                   <div class="flex items-center gap-3 px-2">
+                       <div class="text-center leading-none">
+                           <span class="text-lg font-black text-[#E86C26] block">{{ stats().pending }}</span>
+                       </div>
+                       <div class="h-6 w-px bg-[#d1c4b5]"></div>
+                       <div class="text-center leading-none">
+                           <span class="text-lg font-black text-[#2a2320] block">{{ stats().delivered }}</span>
+                           <span class="text-[6px] font-bold text-[#5c4d46] uppercase block -mt-0.5">Saídas</span>
+                       </div>
+                       <span class="text-[7px] font-bold text-[#5c4d46] uppercase ml-1 leading-tight text-right">Pen-<br>Dentes</span>
+                   </div>
+               </div>
+           </div>
+
+           <!-- 3. SEARCH BAR (CLEAN BEIGE) -->
+           <div class="px-4 pb-2">
+               <div class="relative w-full bg-[#f2ebe5] border-b-2 border-[#d1c4b5] transition-colors focus-within:bg-white focus-within:border-[#E86C26]">
+                   <input type="text" 
+                          [ngModel]="searchQuery()" 
+                          (ngModelChange)="searchQuery.set($event); onInlineSearch()"
+                          autocomplete="off" 
+                          placeholder="Buscar destinatário, unidade..." 
+                          class="w-full bg-transparent px-4 py-3 text-[#2a2320] font-serif font-bold text-lg italic placeholder-[#2a2320]/40 outline-none">
+                   <div class="absolute right-4 top-1/2 -translate-x-1/2 text-[#E86C26]">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   </div>
+               </div>
+           </div>
+       </div>
+        
+        <!-- === ZONA DE ROLAGEM (LISTA DE CARDS) === -->
+       <div #cardsContainer class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 relative custom-scrollbar bg-[#e8e4dc]"> 
+           
+           <!-- LIST VIEW (CARDS DETALHADOS) -->
+           @if (viewMode() === 'LIST') {
+             @if (filteredEncomendas().length === 0) {
+                 <div class="flex flex-col items-center justify-center py-20 opacity-40">
+                     <span class="text-6xl mb-4">📭</span>
+                     <p class="text-lg font-bold text-[#2a2320] uppercase tracking-widest font-serif">
+                         {{ activeFilter() === 'PENDENTE' ? 'Tudo entregue!' : 'Nenhum registro.' }}
+                     </p>
+                 </div>
+             } @else {
+               <!-- Horizontal Scroll Container (Grid Flow Col) -->
+               <div class="px-4 py-6 grid grid-flow-col auto-cols-[90vw] md:auto-cols-[400px] gap-4 snap-x snap-mandatory overflow-x-auto pb-24 content-start">
+                   
+                   @for(item of filteredEncomendas(); track item.id) {
+                         <!-- THE CARD (CLASSIC HORIZONTAL LAYOUT) -->
+                         <div [id]="'pkg-' + item.id"
+                              class="snap-center h-[240px] bg-white shadow-[5px_5px_15px_rgba(0,0,0,0.15)] flex flex-row overflow-hidden border border-[#d1c4b5] relative group shrink-0 rounded-sm">
+                             
+                             <!-- LEFT: PHOTO (45%) -->
+                             <div class="w-[45%] relative h-full bg-gray-200 cursor-zoom-in" (click)="openImage($event, item)">
+                                 @if (item.fotoBase64) {
+                                     <img [src]="'data:image/jpeg;base64,' + item.fotoBase64" class="w-full h-full object-cover brightness-95 contrast-110 group-hover:scale-105 transition-transform duration-500">
+                                 } @else {
+                                     <div class="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-[#f0eee9]">
+                                         <span class="text-2xl">📷</span>
+                                         <span class="text-[9px] font-bold uppercase mt-1">Sem Foto</span>
+                                     </div>
+                                 }
+                                 
+                                 <!-- OVERLAYS DE AGRUPAMENTO (MODO CARDÁPIO) -->
+                                 @if ((item.groupCount || 0) > 1) {
+                                     <!-- Top Banner: VER CARDÁPIO -->
+                                     <div class="absolute top-0 left-0 right-0 bg-black/80 text-white py-1.5 text-center">
+                                         <span class="text-[9px] font-black uppercase tracking-widest">VER CARDÁPIO</span>
+                                     </div>
+                                     
+                                     <!-- Bottom Banner: +X VOLUMES -->
+                                     <div class="absolute bottom-2 right-0 bg-[#E86C26] text-white py-1 px-3 shadow-md border-l-2 border-white">
+                                         <span class="text-[10px] font-black uppercase tracking-widest">+{{ (item.groupCount || 0) - 1 }} VOLUMES</span>
+                                     </div>
+                                 }
+                             </div>
+
+                             <!-- RIGHT: DETAILS (55%) -->
+                             <div (click)="item.groupCount && item.groupCount > 1 ? startWithdrawal(item) : router.navigate(['/package', item.id])" 
+                                  class="w-[55%] flex flex-col relative bg-[#FDFBF7]">
+                                 
+                                 <!-- Header: Status & Date -->
+                                 <div class="p-3 pb-1 border-b border-[#eee] flex justify-between items-start">
+                                     <div class="border border-[#2a2320] px-2 py-0.5">
+                                         <span class="text-[9px] font-black uppercase tracking-widest text-[#2a2320]">
+                                             {{ item.status }}
+                                         </span>
+                                     </div>
+                                     <span class="text-[10px] font-mono text-[#5c4d46] font-bold border-b border-[#ccc] self-center">
+                                         {{ item.dataEntrada | date:'dd/MM HH:mm' }}
+                                     </span>
+                                 </div>
+
+                                 <!-- Body: Info -->
+                                 <div class="px-3 py-2 flex-1 flex flex-col justify-center">
+                                     <!-- NAME -->
+                                     <h4 class="font-serif font-bold text-lg text-[#1a1a1a] leading-tight uppercase line-clamp-2 mb-2">
+                                         {{ item.destinatarioNome }}
+                                     </h4>
+                                     
+                                     <!-- UNIT ROW -->
+                                     <div class="flex items-center gap-2 mb-3">
+                                         <span class="text-[8px] font-bold uppercase text-[#8a7a70] tracking-wider">UNIDADE:</span>
+                                         <div class="bg-[#EAE0D5] px-2 py-0.5 border border-[#d1c4b5]">
+                                             <span class="text-sm font-mono font-bold text-[#2a2320]">
+                                                 {{ item.bloco || '?' }} - {{ item.apto || '?' }}
+                                             </span>
+                                         </div>
+                                         
+                                         @if (isOverdue(item) && item.status === 'PENDENTE') {
+                                             <span class="text-[8px] font-black text-red-600 bg-red-50 border border-red-200 px-1 uppercase whitespace-nowrap">
+                                                 ⚠️ HÁ {{ daysInSystem(item) }} DIAS
+                                             </span>
+                                         }
+                                     </div>
+
+                                     <!-- VIA & TRACKING -->
+                                     <div class="space-y-0.5">
+                                         <p class="text-[10px] font-bold uppercase text-[#2a2320] truncate">
+                                             <span class="text-[#8a7a70]">VIA:</span> {{ item.transportadora || 'MANUAL' }}
+                                         </p>
+                                         <p class="text-[10px] font-bold uppercase text-[#2a2320] truncate font-mono">
+                                             <span class="text-[#8a7a70] font-sans">RASTREIO:</span> {{ item.codigoRastreio || 'S/N' }}
+                                         </p>
+                                     </div>
+                                 </div>
+
+                                 <!-- Footer: Button -->
+                                 <div class="p-2 border-t border-[#eee]">
+                                     @if ((item.status || '') === 'PENDENTE') {
+                                         <button (click)="$event.stopPropagation(); startWithdrawal(item)" class="w-full h-10 bg-[#E86C26] text-white text-[11px] font-black uppercase tracking-widest shadow-[0_2px_0_#b04b12] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 border border-[#b04b12] rounded-sm">
+                                             ASSINAR <span class="text-sm">✎</span>
+                                         </button>
+                                     } @else if ((item.status || '') === 'ENTREGUE') {
+                                         <button (click)="shareDeliveredProof($event, item)" class="w-full h-10 bg-[#dcfce7] text-[#15803d] border border-green-300 font-bold uppercase text-[10px] tracking-widest flex items-center justify-center gap-1 rounded-sm">
+                                             2ª VIA PDF
+                                         </button>
+                                     } @else {
+                                         <div class="w-full h-10 flex items-center justify-center bg-gray-200 text-gray-500 font-bold uppercase text-[10px] tracking-widest rounded-sm cursor-default">
+                                             {{ item.observacoes || 'CANCELADO' }}
+                                         </div>
+                                     }
+                                 </div>
+                             </div>
+                         </div>
+                   }
+                   <div class="w-4"></div> <!-- Spacer -->
+               </div>
+             }
+           } 
+           
+           <!-- SHELF VIEW (GRID) -->
+           @else {
+             <div class="h-full px-4 py-6 grid grid-cols-2 gap-4 align-start">
+                @for (shelf of shelves(); track shelf.title) {
+                   <button (click)="openShelf(shelf)" class="bg-[#2a120a] p-4 shadow-lg border-t-2 border-[#5c4d46] h-32 flex flex-col items-center justify-center relative overflow-hidden group active:scale-95 transition-transform">
+                       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-20 mix-blend-overlay"></div>
+                       <div class="relative z-10 bg-[#EAE0D5] px-3 py-2 shadow-md border border-[#b8a088] w-full text-center transform rotate-1 group-hover:rotate-0 transition-transform">
+                           <h3 class="text-sm font-black text-[#2a2320] uppercase truncate">{{ shelf.title }}</h3>
+                           <span class="text-[10px] font-bold text-[#E86C26] uppercase block mt-1">{{ shelf.items.length }} ITENS</span>
+                       </div>
+                   </button>
+                }
+             </div>
+           }
+       </div>
+
+       <!-- === RODAPÉ (ABAS SÓLIDAS) === -->
+       <div class="w-full z-[40] bg-[#FDFBF7] shadow-[0_-5px_20px_rgba(0,0,0,0.1)] safe-area-pb shrink-0 mt-auto border-t-4 border-[#2a2320] relative">
+             <!-- Main Navigation -->
+             <div class="flex items-center justify-between h-16 px-2">
+                 
+                 <!-- PENDENTES -->
+                 <button (click)="activeFilter.set('PENDENTE')" 
+                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group"
+                         [class.bg-[#EAE0D5]]="activeFilter() === 'PENDENTE'"
+                         [class.shadow-[inset_0_0_30px_#000000]]="activeFilter() === 'PENDENTE'"
+                         [class.bg-transparent]="activeFilter() !== 'PENDENTE'">
+                     <span class="text-2xl mb-1 drop-shadow-sm filter grayscale group-hover:grayscale-0 transition-all">📦</span>
+                     <span class="text-[9px] font-black uppercase tracking-widest text-[#E86C26] drop-shadow-sm">
+                         Pendentes ({{ stats().pending }})
+                     </span>
+                     @if(activeFilter() === 'PENDENTE') { 
+                         <div class="absolute bottom-0 w-full h-1 bg-[#E86C26] shadow-[0_0_10px_#E86C26]"></div> 
+                     }
+                 </button>
+
+                 <!-- ENTREGUES -->
+                 <button (click)="activeFilter.set('ENTREGUE')" 
+                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group"
+                         [class.bg-[#EAE0D5]]="activeFilter() === 'ENTREGUE'"
+                         [class.shadow-[inset_0_0_30px_#000000]]="activeFilter() === 'ENTREGUE'"
+                         [class.bg-transparent]="activeFilter() !== 'ENTREGUE'">
+                     <span class="text-2xl mb-1 drop-shadow-sm filter grayscale group-hover:grayscale-0 transition-all">✅</span>
+                     <span class="text-[9px] font-black uppercase tracking-widest text-[#E86C26] drop-shadow-sm">
+                         Entregues ({{ stats().delivered }})
+                     </span>
+                     @if(activeFilter() === 'ENTREGUE') { 
+                         <div class="absolute bottom-0 w-full h-1 bg-[#E86C26] shadow-[0_0_10px_#E86C26]"></div> 
+                     }
+                 </button>
+
+                 <!-- CANCELADAS -->
+                 <button (click)="activeFilter.set('CANCELADA')" 
+                         class="flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 relative group"
+                         [class.bg-[#EAE0D5]]="activeFilter() === 'CANCELADA'"
+                         [class.shadow-[inset_0_0_30px_#000000]]="activeFilter() === 'CANCELADA'"
+                         [class.bg-transparent]="activeFilter() !== 'CANCELADA'">
+                     <span class="text-2xl mb-1 drop-shadow-sm filter grayscale group-hover:grayscale-0 transition-all">🚫</span>
+                     <span class="text-[9px] font-black uppercase tracking-widest text-[#E86C26] drop-shadow-sm">
+                         Canceladas ({{ stats().canceled }})
+                     </span>
+                     @if(activeFilter() === 'CANCELADA') { 
+                         <div class="absolute bottom-0 w-full h-1 bg-[#E86C26] shadow-[0_0_10px_#E86C26]"></div> 
+                     }
+                 </button>
+             </div>
+             
+             <!-- View Toggle Sub-bar -->
+             <div class="bg-[#2a120a] py-1 flex justify-center items-center gap-6 text-[#EAE0D5] text-[8px] font-bold uppercase tracking-widest border-t border-[#3e2318]">
+                 <button (click)="viewMode.set('LIST')" [class.text-[#E86C26]]="viewMode() === 'LIST'" class="hover:text-white transition-colors">Lista</button>
+                 <span class="text-[#3e2318]">|</span>
+                 <button (click)="viewMode.set('SHELF')" [class.text-[#E86C26]]="viewMode() === 'SHELF'" class="hover:text-white transition-colors">Prateleira</button>
+             </div>
+       </div>
+
+       <!-- GROUP ACTION MODAL (CARDÁPIO) -->
+       @if (showGroupActionModal()) {
+           <div class="fixed inset-0 z-[8000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+               <div class="bg-[#FDFBF7] border-4 border-[#E86C26] w-full max-w-sm relative rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                   
+                   <!-- Header -->
+                   <div class="bg-[#EAE0D5] p-4 border-b border-[#d1c4b5] flex justify-between items-center shrink-0">
+                       <div>
+                           <h3 class="font-black text-[#2a2320] uppercase text-lg leading-none">Cardápio de Entregas</h3>
+                           <p class="text-[10px] text-[#5c4d46] font-bold uppercase mt-1">
+                               {{ groupActionItem()?.destinatarioNome }}
+                           </p>
+                       </div>
+                       <button (click)="closeGroupActionModal()" class="w-8 h-8 flex items-center justify-center bg-[#2a2320] text-white rounded-full font-bold">✕</button>
+                   </div>
+
+                   <!-- Content: List of Items in Group -->
+                   <div class="flex-1 overflow-y-auto p-4 bg-[#e8e4dc] custom-scrollbar">
+                       <div class="flex flex-col gap-3">
+                           <!-- Resume Card -->
+                           <div class="bg-white p-3 border border-[#d1c4b5] shadow-sm flex justify-between items-center">
+                               <span class="font-black text-[#2a2320] text-sm uppercase">{{ (groupActionItem()?.groupCount || 0) }} VOLUMES TOTAL</span>
+                               <div class="bg-[#E86C26] text-white text-[10px] font-bold px-2 py-1 rounded-sm">PENDENTE</div>
+                           </div>
+
+                           <!-- Action Buttons -->
+                           <button (click)="proceedGroupWithdrawal(true)" 
+                                   class="w-full py-4 bg-[#2a120a] text-white font-black uppercase text-xs tracking-widest shadow-md active:scale-95 transition-transform border border-[#3e2318] flex items-center justify-center gap-2">
+                               <span>📦</span> RETIRAR TODOS AGORA
+                           </button>
+                           
+                           <div class="text-center text-[10px] font-bold text-[#5c4d46] uppercase my-1">- OU -</div>
+
+                           <button (click)="proceedGroupWithdrawal(false)" 
+                                   class="w-full py-3 bg-white border-2 border-[#2a2320] text-[#2a2320] font-bold uppercase text-xs tracking-widest hover:bg-[#F2EBE5] transition-colors">
+                               VER DETALHES (INDIVIDUAL)
+                           </button>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       }
+
+       <!-- WITHDRAWAL MODAL (ESTILO ELEGANTE RESTAURADO) -->
+       @if (withdrawalItem() && withdrawalStep() === 'NAME' && !showQuickRegisterModal()) {
+           <div class="fixed inset-0 z-[7000] bg-black/90 flex items-start justify-center p-4 pt-12 md:pt-24 font-serif animate-[fadeIn_0.2s] overflow-y-auto">
+              <div class="bg-[#FDFBF7] border-4 border-[#E86C26] w-full max-w-md shadow-[0_0_50px_rgba(232,108,38,0.3)] relative rounded-sm flex flex-col transform rotate-1">
+                  
+                  <!-- Elegant Header -->
+                  <div class="bg-[#EAE0D5] p-4 border-b-2 border-[#2a2320] text-center">
+                      <h3 class="text-xl font-black text-[#2a2320] uppercase tracking-widest">Identificação</h3>
+                  </div>
+
+                  <!-- Content -->
+                  <div class="p-6 space-y-6">
+                      
+                      <!-- Item Info Card -->
+                      <div class="bg-white border-2 border-[#2a2320] p-4 shadow-md relative">
+                          <div class="absolute -top-3 left-3 bg-[#E86C26] text-white text-[9px] font-black uppercase px-2 py-1 tracking-widest">Item Solicitado</div>
+                          <h4 class="text-lg font-black text-[#2a2320] uppercase mt-2">{{ withdrawalItem()?.destinatarioNome }}</h4>
+                          <p class="text-sm font-mono font-bold text-[#5c4d46]">UNIDADE: {{ withdrawalItem()?.bloco }} - {{ withdrawalItem()?.apto }}</p>
+                      </div>
+                      
+                      <!-- Input Name -->
+                      <div>
+                          <label class="block text-[10px] font-black text-[#2a2320] uppercase mb-2 tracking-widest">Quem está retirando?</label>
+                          <input type="text" 
+                                 [ngModel]="withdrawalReceiverName()" 
+                                 (ngModelChange)="withdrawalReceiverName.set($event); onNameInput()"
+                                 (focus)="onNameFocus()"
+                                 class="w-full bg-[#F2EBE5] border-2 border-[#2a2320] p-4 text-lg font-black text-[#2a2320] uppercase outline-none focus:border-[#E86C26] placeholder-[#2a2320]/30" 
+                                 placeholder="DIGITE O NOME...">
+                          
+                          <!-- Suggestions (Styled List) -->
+                          @if (showResidentSuggestions()) {
+                              <div class="mt-2 border-2 border-[#2a2320] max-h-32 overflow-y-auto bg-white shadow-lg">
+                                  @for (res of filteredResidents(); track res.id) {
+                                      <button (click)="selectResident(res)" class="w-full text-left p-3 hover:bg-[#E86C26] hover:text-white font-bold uppercase text-xs border-b border-[#eee] last:border-0 transition-colors">
+                                          {{ res.nome }}
+                                      </button>
+                                  }
+                              </div>
+                          }
+                          
+                          <!-- BOTÃO CADASTRAR MORADOR (Novo Fluxo) -->
+                          @if (isUnknownResident()) {
+                              <button (click)="redirectToCompleteRegistration()" 
+                                      class="mt-3 w-full py-3 bg-[#2a2320] border-2 border-[#2a2320] text-[#EAE0D5] font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-[#E86C26] hover:text-white hover:border-[#E86C26] transition-all animate-[fadeIn_0.3s]">
+                                  + Cadastrar "{{ withdrawalReceiverName() }}"
+                              </button>
+                          }
+                      </div>
+                      
+                      <!-- Third Party Checkbox -->
+                      <div class="flex items-center gap-2 cursor-pointer select-none" (click)="toggleThirdParty()">
+                          <div class="w-5 h-5 border-2 border-[#2a2320] flex items-center justify-center transition-colors" [class.bg-[#E86C26]]="isThirdPartyMode()">
+                              @if(isThirdPartyMode()){ <span class="text-white text-xs font-black">✓</span> }
+                          </div>
+                          <span class="text-xs font-bold uppercase text-[#2a2320]">É um terceiro (Exige CPF)</span>
+                      </div>
+                      
+                      @if(isThirdPartyMode()) {
+                          <input type="tel" [ngModel]="withdrawalReceiverCpf()" (ngModelChange)="withdrawalReceiverCpf.set($event)" class="w-full bg-white border-2 border-[#2a2320] p-3 text-sm font-mono font-bold outline-none focus:border-[#E86C26]" placeholder="CPF (000.000.000-00)">
+                      }
+                  </div>
+
+                  <!-- Elegant Footer -->
+                  <div class="p-4 bg-[#EAE0D5] border-t-2 border-[#2a2320] flex gap-3">
+                      <button (click)="cancelWithdrawal()" class="flex-1 py-4 border-2 border-[#2a2320] text-[#2a2320] font-black uppercase text-[10px] tracking-widest hover:bg-white transition-colors">
+                          Cancelar
+                      </button>
+                      <button (click)="goToSignature()" class="flex-[2] py-4 bg-[#E86C26] text-white font-black uppercase text-[10px] tracking-widest border-2 border-[#2a2320] shadow-[4px_4px_0_#2a2320] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all">
+                          Assinar
+                      </button>
+                  </div>
+              </div>
+           </div>
+       }
+       
+       <!-- SIGNATURE MODAL - AGORA FULLSCREEN & MAXIMIZADO PARA LANDSCAPE -->
+       @if (withdrawalItem() && withdrawalStep() === 'SIGNATURE') {
+           <div class="fixed inset-0 z-[9000] bg-[#FDFBF7] flex flex-col items-center justify-center">
+               <!-- No borders, no shadows, pure functionality -->
+               <div class="w-full h-full flex flex-col relative">
+                   
+                   <!-- Minimal Header -->
+                   <div class="bg-[#EAE0D5] px-4 py-2 border-b border-[#2a2320] flex justify-between items-center shrink-0 h-12">
+                       <div class="flex items-center gap-4">
+                           <button (click)="withdrawalStep.set('NAME')" class="text-[#2a2320] font-black uppercase text-xs hover:text-[#E86C26]">← Voltar</button>
+                           <span class="text-[10px] font-bold text-[#5c4d46] uppercase">Assinatura de: <span class="text-[#2a2320]">{{ withdrawalReceiverName() }}</span></span>
+                       </div>
+                       <button (click)="clearSignature()" class="text-red-600 font-bold uppercase text-xs underline hover:text-red-500">Limpar</button>
+                   </div>
+                   
+                   <!-- Canvas Area (Maximizado) -->
+                   <div class="flex-1 relative bg-white cursor-crosshair overflow-hidden touch-none select-none">
+                       <!-- Grid de fundo sutil para referência -->
+                       <div class="absolute inset-0 pointer-events-none opacity-10 bg-[size:40px_40px] bg-[linear-gradient(to_right,#ccc_1px,transparent_1px),linear-gradient(to_bottom,#ccc_1px,transparent_1px)]"></div>
+                       
+                       <canvas #signatureCanvas class="absolute inset-0 w-full h-full touch-none select-none"></canvas>
+                       
+                       <div class="absolute bottom-10 left-10 right-10 border-b-2 border-dashed border-[#2a2320] pointer-events-none opacity-30"></div>
+                       <div class="absolute bottom-2 right-4 text-[10px] font-bold text-[#2a2320] opacity-30 pointer-events-none">ASSINAR ACIMA</div>
+                   </div>
+                   
+                   <!-- Action Footer -->
+                   <div class="bg-[#EAE0D5] border-t border-[#2a2320] p-2 flex gap-4 shrink-0 h-16 items-center">
+                       <button (click)="confirmSignature()" [disabled]="isGeneratingProof()" class="w-full h-full bg-[#E86C26] text-white border border-[#2a2320] font-black uppercase text-sm tracking-widest shadow-sm active:scale-[0.99] transition-transform">
+                           {{ isGeneratingProof() ? 'Processando...' : 'CONFIRMAR ENTREGA' }}
+                       </button>
+                   </div>
+               </div>
+           </div>
+       }
+       
+       <!-- SUCCESS MODAL -->
+       @if (withdrawalStep() === 'SUCCESS') {
+           <div class="fixed inset-0 z-[8000] bg-black/90 flex items-center justify-center p-4">
+               <div class="bg-[#EAE0D5] border-4 border-[#22c55e] p-8 w-full max-w-sm text-center shadow-2xl relative rotate-1">
+                   <div class="text-4xl mb-2">✅</div>
+                   <h3 class="text-2xl font-black text-[#2a2320] uppercase mb-6">Entrega Concluída</h3>
+                   <button (click)="sendWhatsappAfterWithdraw()" class="w-full py-4 bg-[#22c55e] text-white font-bold uppercase text-xs tracking-widest border-2 border-[#2a2320] shadow-sm mb-3">
+                       Enviar no WhatsApp
+                   </button>
+                   <button (click)="closeSuccessModal()" [disabled]="!hasSharedProof()" class="w-full py-3 text-[#5c4d46] font-bold uppercase text-[10px] underline hover:text-[#2a2320] disabled:opacity-50">
+                       Finalizar e Fechar
+                   </button>
+               </div>
+           </div>
+       }
+
+       <!-- IMAGE VIEWER (MODO GRUPO OU IMAGEM ÚNICA) -->
+       @if (selectedGroup()) {
+           <div class="fixed inset-0 z-[10000] bg-black/95 flex flex-col animate-[fadeIn_0.2s_ease-out]">
+               <!-- Header do Grupo -->
+               <div class="bg-[#EAE0D5] p-4 border-b-4 border-[#2a2320] flex justify-between items-center shrink-0 safe-area-pt">
+                   <div>
+                       <h3 class="font-black text-[#2a2320] uppercase text-xl">{{ selectedGroup()?.destinatarioNome }}</h3>
+                       <p class="text-[10px] font-bold text-[#E86C26] uppercase">{{ selectedGroup()?.groupCount }} VOLUMES NESTE LOTE</p>
+                   </div>
+                   <button (click)="closeGroupModal()" class="w-10 h-10 bg-[#2a2320] text-white flex items-center justify-center font-bold text-xl hover:bg-[#E86C26]">✕</button>
+               </div>
+               
+               <!-- Grid de Itens do Grupo -->
+               <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#e8e4dc]">
+                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                       @for (item of selectedGroup()?.groupItems; track item.id) {
+                           <div class="bg-white shadow-lg border border-[#d1c4b5] flex flex-col aspect-[3/5] relative rounded-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
+                               
+                               <!-- 1. Image Area (Top 60%) -->
+                               <div class="w-full h-[60%] bg-gray-200 relative cursor-zoom-in border-b border-[#eee]" (click)="viewGroupItemImage(item.fotoBase64)">
+                                   @if(item.fotoBase64) {
+                                       <img [src]="'data:image/jpeg;base64,' + item.fotoBase64" class="w-full h-full object-cover brightness-95 group-hover:scale-105 transition-transform duration-500">
+                                   }
+                                   <!-- Date Badge Overlay -->
+                                   <div class="absolute top-2 right-2 bg-black/70 text-white text-[8px] font-mono px-1.5 py-0.5 rounded-sm backdrop-blur-sm border border-white/20">
+                                       {{ item.dataEntrada | date:'dd/MM HH:mm' }}
+                                   </div>
+                               </div>
+
+                               <!-- 2. Details Area (Bottom 40%) -->
+                               <div class="w-full h-[40%] p-3 flex flex-col bg-[#FDFBF7] relative">
+                                   <!-- Leather Texture Hint -->
+                                   <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-50 pointer-events-none mix-blend-multiply"></div>
+
+                                   <div class="relative z-10 flex-1 flex flex-col justify-between">
+                                       <div>
+                                           <span class="text-[10px] font-black uppercase text-[#2a2320] block truncate mb-1">{{ item.transportadora || 'MANUAL' }}</span>
+                                           <span class="text-[9px] font-mono text-[#5c4d46] block truncate bg-[#EAE0D5] px-1 py-0.5 border border-[#d1c4b5] text-center rounded-sm">
+                                               {{ item.codigoRastreio || 'S/N' }}
+                                           </span>
+                                       </div>
+                                       
+                                       <button (click)="startWithdrawal(item, true)" class="w-full py-2 mt-1 bg-white border border-[#2a2320] text-[#2a2320] text-[9px] font-black uppercase hover:bg-[#2a2320] hover:text-[#EAE0D5] transition-colors rounded-sm shadow-sm flex items-center justify-center gap-1 active:scale-95">
+                                           RETIRAR ITEM
+                                       </button>
+                                   </div>
+                               </div>
+                           </div>
+                       }
+                   </div>
+               </div>
+               
+               <!-- Action Footer -->
+               <div class="p-4 bg-[#EAE0D5] border-t-4 border-[#2a2320] safe-area-pb">
+                   <button (click)="startWithdrawal(selectedGroup(), true)" class="w-full py-4 bg-[#E86C26] text-white font-black uppercase tracking-widest text-sm shadow-md border-2 border-[#2a2320]">
+                       RETIRAR TODO O LOTE
+                   </button>
+               </div>
+           </div>
+       } 
+       
+       @else if (viewingImage()) {
+           <div class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4" (click)="closeImage()">
+               <img [src]="'data:image/jpeg;base64,' + viewingImage()" class="max-w-full max-h-[90vh] object-contain shadow-2xl border-4 border-white" (click)="$event.stopPropagation()">
+               <button (click)="closeImage()" class="absolute top-4 right-4 text-white text-2xl font-bold">✕</button>
+           </div>
+       }
+
+       <!-- MODALS AND OVERLAYS (KEEPING EXISTING LOGIC FOR SHELF, ETC) -->
+       @if (selectedShelf()) {
+         <div class="fixed inset-0 z-[6000] bg-[#FDFBF7] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+             <div class="bg-[#EAE0D5] p-4 border-b-4 border-[#2a2320] flex justify-between items-center shrink-0 shadow-lg safe-area-pt">
+                 <h3 class="font-black text-[#2a2320] uppercase text-xl leading-none tracking-widest">{{ selectedShelf()?.title }}</h3>
+                 <button (click)="closeShelf()" class="w-10 h-10 bg-[#2a2320] text-[#EAE0D5] flex items-center justify-center font-bold text-xl hover:bg-[#E86C26]">✕</button>
+             </div>
+             <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#e8e4dc]">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     @for (item of currentShelfItems(); track item.id) {
+                         <div class="h-[240px] bg-white shadow-md flex flex-row overflow-hidden border border-[#d1c4b5] relative">
+                             <div class="w-[40%] bg-gray-200 cursor-zoom-in" (click)="openImage($event, item)">
+                                 @if(item.fotoBase64) { <img [src]="'data:image/jpeg;base64,' + item.fotoBase64" class="w-full h-full object-cover"> }
+                             </div>
+                             <div class="w-[60%] flex flex-col bg-[#FDFBF7]">
+                                 <div class="p-2 border-b border-[#eee]">
+                                     <h4 class="font-serif font-bold text-sm text-[#1a1a1a] uppercase line-clamp-2">{{ item.destinatarioNome }}</h4>
+                                 </div>
+                                 <div class="px-2 py-2 flex-1">
+                                     <span class="text-xs font-mono font-bold text-[#2a2320] bg-[#EAE0D5] px-1 border border-[#d1c4b5]">{{ item.bloco }} - {{ item.apto }}</span>
+                                 </div>
+                                 <div class="mt-auto p-2 border-t border-[#eee]">
+                                     <button (click)="$event.stopPropagation(); startWithdrawal(item)" class="w-full h-8 bg-[#E86C26] text-white text-[9px] font-black uppercase tracking-widest">ASSINAR</button>
+                                 </div>
+                             </div>
+                         </div>
+                     }
+                 </div>
+             </div>
+         </div>
+       }
+
+</div>
