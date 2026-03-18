@@ -1,16 +1,1 @@
-{
-  "name": "Protocolo Inteligente",
-  "short_name": "Protocolo",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
-  "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
-}
+{ "name": "Protocolo Inteligente", "short_name": "Protocolo", "start_url": "/", "display": "standalone", "background_color": "#562C0A", "theme_color": "#502A10", "icons": [ { "src": "/assets/icons/capa-512x512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }, { "src": "/assets/icons/capa-192x192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" } ] }
