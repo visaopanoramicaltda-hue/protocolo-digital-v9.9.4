@@ -176,10 +176,10 @@ export class QuantumNetService implements OnDestroy {
               }
 
               this.statusDetalhado.set('REDE ATIVA');
-          } catch(e) {}
+          } catch {}
         };
 
-        this.ws.onerror = (err) => {
+        this.ws.onerror = () => {
           // Silent fail for user, retry handled by onClose
         };
 
@@ -255,7 +255,7 @@ export class QuantumNetService implements OnDestroy {
   }
   
   // --- SYNC DELTA HANDLER ---
-  private async handleSyncDelta(packet: any) {
+  private async handleSyncDelta(packet: Record<string, unknown>) {
       // 1. Check Condo Isolation (Security)
       const myCondo = this.db.currentTenantId();
       if (!myCondo || packet.condoId !== myCondo) {
@@ -267,14 +267,14 @@ export class QuantumNetService implements OnDestroy {
           return; // Ignore my own echoes
       }
       
-      const event: DbEvent = packet.dbEvent;
+      const event: DbEvent = packet['dbEvent'] as unknown as DbEvent;
       
       // 3. Apply to Local DB Silently
       console.log(`[QuantumNet] Recebido Delta: ${event.type} em ${event.store}`);
       await this.db.applyNetworkChange(event);
   }
   
-  private async broadcastDelta(payload: any) {
+  private async broadcastDelta(payload: Record<string, unknown>) {
       // Envia via WebSocket Server (Relay)
       // O Server repassa para todos. O filtro acontece no cliente.
       const signed = await this._assinarPayload(payload);
@@ -294,7 +294,7 @@ export class QuantumNetService implements OnDestroy {
       this.broadcastMessage(signed);
   }
   
-  private async handleFullSyncRequest(packet: any) {
+  private async handleFullSyncRequest(packet: Record<string, unknown>) {
       const myCondo = this.db.currentTenantId();
       if (!myCondo || packet.condoId !== myCondo || packet.senderId === this.selfId) return;
       
@@ -312,14 +312,14 @@ export class QuantumNetService implements OnDestroy {
       this.broadcastMessage(signed);
   }
   
-  private async handleFullSyncResponse(packet: any) {
+  private async handleFullSyncResponse(packet: Record<string, unknown>) {
       const myCondo = this.db.currentTenantId();
       if (!myCondo || packet.condoId !== myCondo || packet.targetId !== this.selfId) return;
       
       console.log(`[QuantumNet] Recebido Full Sync de ${packet.senderId}`);
       
       // Convert JSON string to File object to use existing import logic
-      const blob = new Blob([packet.data], { type: 'application/json' });
+      const blob = new Blob([packet['data'] as BlobPart], { type: 'application/json' });
       const file = new File([blob], 'sync.json', { type: 'application/json' });
       
       try {
@@ -368,14 +368,14 @@ export class QuantumNetService implements OnDestroy {
       this.isDominantNode.set(myWeight >= networkMax);
   }
 
-  private broadcastMessage(messageObj: any) {
+  private broadcastMessage(messageObj: Record<string, unknown>) {
       const payloadString = JSON.stringify(messageObj);
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(payloadString);
       }
   }
   
-  private async _assinarPayload(payload: any): Promise<any> {
+  private async _assinarPayload(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const payloadString = JSON.stringify(payload);
     const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payloadString));
     const signature = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');

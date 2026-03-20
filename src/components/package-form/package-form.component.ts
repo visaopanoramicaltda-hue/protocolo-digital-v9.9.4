@@ -74,7 +74,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   sideOneSummary = signal(''); 
   linkedPreLoteId = signal<string | null>(null); 
   
-  private processTimeout: any = null;
+  private processTimeout: ReturnType<typeof setTimeout> | null = null;
   
   // TURBO MODE CONFIGURATION
   private readonly AUTO_CAPTURE_STABILITY_THRESHOLD = 1; 
@@ -155,7 +155,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
     const query = this.normalizeString(this.packageData().destinatarioNome || '');
     if (query.length < 2) return [];
     return this.db.moradores().filter(morador => 
-      this.normalizeString(morador.nome).includes(query)
+      this.isSamePerson(morador.nome, query)
     ).slice(0, 5);
   });
 
@@ -171,7 +171,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   totalLidas = signal(parseInt(localStorage.getItem('simbiose_promo_count') || '0'));
   mostrarPromo = signal(false);
   linkAtual = signal('');
-  currentPromo = signal<any>(null); 
+  currentPromo = signal<Record<string, unknown> | null>(null); 
   
   // --- MODO TRIAGEM (BATCH MODE) ---
   isTriagemMode = signal(false);
@@ -202,7 +202,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       return Array.from(uniqueCouriers.entries()).map(([name, phone]) => ({ name, phone })).slice(0, 5);
   });
   
-  private pressTimer: any;
+  private pressTimer: ReturnType<typeof setTimeout> | undefined;
   isLongPressTriggered = false;
   isPressingButton = signal(false);
   isInitializingScanner = signal(false); 
@@ -416,7 +416,20 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   public isSamePerson(name1: string, name2: string): boolean {
     const n1 = this.normalizeString(name1);
     const n2 = this.normalizeString(name2);
-    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+    return n1 === n2 || n1.includes(n2) || n2.includes(n1) || this.isNameMatch(n1, n2);
+  }
+
+  private isNameMatch(scannedName: string, dbName: string): boolean {
+      if (!scannedName || !dbName) return false;
+      const scannedParts = scannedName.split(' ').filter(p => p.length > 1);
+      const dbParts = dbName.split(' ').filter(p => p.length > 1);
+      
+      if (scannedParts.length === 0 || dbParts.length === 0) return false;
+
+      const allScannedInDb = scannedParts.every(part => dbParts.includes(part));
+      const allDbInScanned = dbParts.every(part => scannedParts.includes(part));
+
+      return allScannedInDb || allDbInScanned;
   }
 
   public removeCanvasListeners() {
@@ -485,7 +498,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   }
 
   public generateStandardTracking(): string {
-      return `MANUAL-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+      return `xxxxxxxxxx`;
   }
 
   // --- SCANNER LOGIC ---
@@ -517,7 +530,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
           this.stream.getTracks().forEach(track => {
               try {
                   track.stop();
-              } catch(e) {}
+              } catch {}
           });
           this.stream = null;
       }
@@ -532,6 +545,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       if (this.isScannerOpen() || this.isInitializingScanner()) return;
       
       this.isInitializingScanner.set(true);
+      this.qrCodeScanned.set(null);
       
       // REGRA DE RESFRIAMENTO: Assegura limpeza antes de reabrir
       this.stopCameraStream();
@@ -555,11 +569,12 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
           // --- AUTO-FLASH LOGIC ---
           const track = this.stream.getVideoTracks()[0];
           if (track) {
-              const capabilities = track.getCapabilities() as any;
+              const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean };
               if (capabilities && capabilities.torch) {
                   this.showFlash.set(true);
                   this.flashActive.set(true);
-                  track.applyConstraints({ advanced: [{ torch: true }] } as any).catch(err => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  track.applyConstraints({ advanced: [{ torch: true }] } as unknown as MediaTrackConstraints).catch(err => {
                       console.warn('Auto-flash failed:', err);
                       this.flashActive.set(false);
                   });
@@ -595,9 +610,10 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       const newState = !this.flashActive();
       this.flashActive.set(newState);
       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       track.applyConstraints({
           advanced: [{ torch: newState }]
-      } as any).catch(() => {
+      } as unknown as MediaTrackConstraints).catch(() => {
           this.ui.show('Flash indisponível.', 'WARNING');
           this.flashActive.set(!newState); 
       });
@@ -631,6 +647,48 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
               canvas.height = h;
               
               ctx.drawImage(video, 0, 0, w, h);
+              
+              // --- QR CODE DETECTION ---
+              try {
+                  const imageData = ctx.getImageData(0, 0, w, h);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const code = (window as any).jsQR(imageData.data, imageData.width, imageData.height, {
+                      inversionAttempts: "dontInvert",
+                  });
+                  
+                  const qrCanvas = this.qrCodeCanvas?.nativeElement;
+                  if (qrCanvas) {
+                      qrCanvas.width = video.clientWidth;
+                      qrCanvas.height = video.clientHeight;
+                      const qrCtx = qrCanvas.getContext('2d');
+                      if (qrCtx) {
+                          qrCtx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+                          
+                          if (code && code.location) {
+                              // Scale coordinates from video resolution to canvas display size
+                              const scaleX = qrCanvas.width / w;
+                              const scaleY = qrCanvas.height / h;
+                              
+                              qrCtx.beginPath();
+                              qrCtx.moveTo(code.location.topLeftCorner.x * scaleX, code.location.topLeftCorner.y * scaleY);
+                              qrCtx.lineTo(code.location.topRightCorner.x * scaleX, code.location.topRightCorner.y * scaleY);
+                              qrCtx.lineTo(code.location.bottomRightCorner.x * scaleX, code.location.bottomRightCorner.y * scaleY);
+                              qrCtx.lineTo(code.location.bottomLeftCorner.x * scaleX, code.location.bottomLeftCorner.y * scaleY);
+                              qrCtx.lineTo(code.location.topLeftCorner.x * scaleX, code.location.topLeftCorner.y * scaleY);
+                              qrCtx.lineWidth = 4;
+                              qrCtx.strokeStyle = "#E86C26";
+                              qrCtx.stroke();
+                          }
+                      }
+                  }
+
+                  if (code && code.data) {
+                      this.qrCodeScanned.set(code.data);
+                  }
+              } catch {
+                  // ignore
+              }
+
               // console.log('Calling detectAndCapture');
               this.detectAndCapture(canvas);
           }
@@ -687,7 +745,8 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
               this.gemini.extractTextFromLabel(
                   base64.split(',')[1], 
                   allMoradores, 
-                  learnedCarriers
+                  learnedCarriers,
+                  { qrCode: this.qrCodeScanned() || undefined }
               ),
               new Promise(resolve => setTimeout(resolve, this.STANDARD_CAPTURE_DELAY_MS))
           ]);
@@ -812,7 +871,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
   }
   
   proceedWithCamera() { sessionStorage.setItem('camera_permission_choice_made', 'true'); this.showCameraPermissionPrompt.set(false); this.startScanner(); }
-  cancelCameraPermission() { sessionStorage.setItem('camera_permission_choice_made', 'true'); this.showCameraPermissionPrompt.set(false); }
+  cancelCameraPermission() { this.showCameraPermissionPrompt.set(false); }
 
   async saveNew() {
       if (this.isPrivacyViolation()) { this.ui.show('🚫 PRIVACIDADE: FOTO DESCARTADA. NÃO É PERMITIDO REGISTRAR HUMANOS.', 'ERROR'); return; }
@@ -837,7 +896,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
       this.ui.show('Salvando...', 'SUCCESS');
       
       let finalTrackingCode = d.codigoRastreio;
-      if (!this.isCorrespondenceMode() && (!finalTrackingCode || finalTrackingCode.trim() === '')) { finalTrackingCode = this.generateStandardTracking(); }
+      if (!finalTrackingCode || finalTrackingCode.trim() === '') { finalTrackingCode = this.generateStandardTracking(); }
 
       const newItem: Encomenda = {
           id: this.isEditMode() && d.id ? d.id : crypto.randomUUID(),
@@ -848,7 +907,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
           codigoRastreio: finalTrackingCode,
           condicaoFisica: d.condicaoFisica,
           dataEntrada: d.dataEntrada || new Date().toISOString(),
-          status: (d.status as any) || 'PENDENTE',
+          status: (d.status as 'PENDENTE' | 'ENTREGUE' | 'CANCELADA' | 'PRE_LOTE') || 'PENDENTE',
           porteiroEntradaId: this.isEditMode() && d.porteiroEntradaId ? d.porteiroEntradaId : (this.auth.currentUser()?.id || 'admin'),
           fotoBase64: d.fotoBase64,
           assinaturaBase64: d.assinaturaBase64,
@@ -982,10 +1041,10 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
           this.ctx.lineJoin = 'round';
           this.ctx.strokeStyle = '#000';
           
-          const startDraw = (e: any) => { if(e.cancelable) e.preventDefault(); this.isDrawing = true; this.ctx?.beginPath(); const pos = getPos(e); this.lastX = pos.x; this.lastY = pos.y; };
-          const draw = (e: any) => { if(!this.isDrawing || !this.ctx) return; if(e.cancelable) e.preventDefault(); const pos = getPos(e); this.ctx.beginPath(); this.ctx.moveTo(this.lastX, this.lastY); this.ctx.lineTo(pos.x, pos.y); this.ctx.stroke(); this.lastX = pos.x; this.lastY = pos.y; };
+          const startDraw = (e: MouseEvent | TouchEvent) => { if(e.cancelable) e.preventDefault(); this.isDrawing = true; this.ctx?.beginPath(); const pos = getPos(e); this.lastX = pos.x; this.lastY = pos.y; };
+          const draw = (e: MouseEvent | TouchEvent) => { if(!this.isDrawing || !this.ctx) return; if(e.cancelable) e.preventDefault(); const pos = getPos(e); this.ctx.beginPath(); this.ctx.moveTo(this.lastX, this.lastY); this.ctx.lineTo(pos.x, pos.y); this.ctx.stroke(); this.lastX = pos.x; this.lastY = pos.y; };
           const endDraw = () => { this.isDrawing = false; };
-          const getPos = (e: any) => { const r = canvas.getBoundingClientRect(); const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY; return { x: cx - r.left, y: cy - r.top }; };
+          const getPos = (e: MouseEvent | TouchEvent) => { const r = canvas.getBoundingClientRect(); const cx = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX; const cy = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY; return { x: cx - r.left, y: cy - r.top }; };
 
           canvas.addEventListener('mousedown', startDraw);
           canvas.addEventListener('mousemove', draw);
@@ -1035,7 +1094,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
 
   // --- TEMPLATE HELPERS ---
 
-  onAddressChange(field: string, value: any) {
+  onAddressChange(field: string, value: string) {
     this.updateModel(field, value);
     
     const d = this.packageData();
@@ -1061,7 +1120,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  updateModel(field: string, value: any) {
+  updateModel(field: string, value: string) {
     this.packageData.update(d => ({ ...d, [field]: value }));
   }
 
@@ -1075,7 +1134,23 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
 
   onDestinatarioInput(value: string) {
     this.updateModel('destinatarioNome', value);
-    this.showInlineDestinatarioSuggestions.set(true);
+    
+    const query = this.normalizeString(value);
+    if (query.length >= 3) {
+      const matches = this.db.moradores().filter(m => this.isSamePerson(m.nome, query));
+      
+      if (matches.length === 1 && (query.length >= 5 || this.normalizeString(matches[0].nome) === query)) {
+        // Auto-fill if exact match or single match with enough characters typed
+        this.updateModel('destinatarioNome', matches[0].nome);
+        this.updateModel('bloco', matches[0].bloco);
+        this.updateModel('apto', matches[0].apto);
+        this.showInlineDestinatarioSuggestions.set(false);
+      } else {
+        this.showInlineDestinatarioSuggestions.set(true);
+      }
+    } else {
+      this.showInlineDestinatarioSuggestions.set(false);
+    }
   }
 
   onDestinatarioBlur() {
@@ -1157,7 +1232,7 @@ export class PackageFormComponent implements AfterViewInit, OnDestroy {
               this.closeCancelModal();
               this.goBack();
           }
-      } catch (e) {
+      } catch {
           this.ui.show('Erro ao cancelar.', 'ERROR');
       }
   }

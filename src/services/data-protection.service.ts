@@ -49,7 +49,7 @@ export class DataProtectionService {
 
   // Web File System Access API handles
   private vaultHandle: FileSystemDirectoryHandle | null = null;
-  private masterFileHandle: any = null; // Handle para o Backup Mestre (Arquivo Único)
+  private masterFileHandle: FileSystemFileHandle | null = null; // Handle para o Backup Mestre (Arquivo Único)
 
   private readonly DIFFICULTY = 2; 
   private readonly BACKUP_DIFFICULTY = 3; 
@@ -104,7 +104,7 @@ export class DataProtectionService {
     try {
         await fetch('https://api.ipify.org?format=json');
         this.isLicenseValid.set(true);
-    } catch (e) {}
+    } catch {}
   }
 
   private checkFileSystemSupport() {
@@ -119,7 +119,8 @@ export class DataProtectionService {
    * Se já temos o handle do arquivo, sobrescreve (ATUALIZADO).
    * Se não, pede para criar/selecionar (CRIADO).
    */
-  async performSmartBackup(data: any): Promise<'CRIADO' | 'ATUALIZADO' | 'DOWNLOADED'> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async performSmartBackup(data: unknown): Promise<'CRIADO' | 'ATUALIZADO' | 'DOWNLOADED'> {
       const rawContent = JSON.stringify(data);
       
       // CRIPTOGRAFIA AES-256 ANTES DE SALVAR
@@ -130,7 +131,7 @@ export class DataProtectionService {
       try {
           // Tenta recuperar handle se estiver nulo (persistence check)
           if (!this.masterFileHandle) {
-              const persisted = await this.db.getItem<{id: string, handle: any}>('sys_handles', this.MASTER_BACKUP_HANDLE_KEY);
+              const persisted = await this.db.getItem<{id: string, handle: FileSystemFileHandle}>('sys_handles', this.MASTER_BACKUP_HANDLE_KEY);
               if (persisted && persisted.handle) {
                   this.masterFileHandle = persisted.handle;
               }
@@ -140,8 +141,9 @@ export class DataProtectionService {
               // --- MODO ATUALIZAÇÃO (Sobrescreve o arquivo existente) ---
               const opts = { mode: 'readwrite' as const };
               
-              if ((await this.masterFileHandle.queryPermission(opts)) !== 'granted') {
-                  if ((await this.masterFileHandle.requestPermission(opts)) !== 'granted') {
+              const handle = this.masterFileHandle as unknown as FileSystemHandleWithPermissions;
+              if ((await handle.queryPermission(opts)) !== 'granted') {
+                  if ((await handle.requestPermission(opts)) !== 'granted') {
                       this.masterFileHandle = null; 
                       return this.performSmartBackup(data); 
                   }
@@ -151,7 +153,7 @@ export class DataProtectionService {
               return 'ATUALIZADO';
           } else {
               // --- MODO CRIAÇÃO (Salva o primeiro arquivo fixo) ---
-              this.masterFileHandle = await (window as any).showSaveFilePicker({
+              this.masterFileHandle = await (window as unknown as { showSaveFilePicker: (options: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
                   suggestedName: this.MASTER_FILENAME, 
                   types: [{
                       description: 'Backup Seguro Simbiose (AES-256)',
@@ -165,8 +167,8 @@ export class DataProtectionService {
               await this.writeAtomic(this.masterFileHandle, finalContent);
               return 'CRIADO';
           }
-      } catch (erro: any) {
-          if (erro.name === 'AbortError') return 'DOWNLOADED';
+      } catch (erro: unknown) {
+          if ((erro as Error).name === 'AbortError') return 'DOWNLOADED';
 
           // Fallback para download legado (Arquivo Encriptado)
           console.warn('[SmartBackup] Ambiente restrito. Usando Download Legado (Encriptado).');
@@ -187,7 +189,7 @@ export class DataProtectionService {
       URL.revokeObjectURL(url);
   }
 
-  private async writeAtomic(fileHandle: any, content: string) {
+  private async writeAtomic(fileHandle: FileSystemFileHandle, content: string) {
       const writable = await fileHandle.createWritable();
       await writable.write(content);
       await writable.close();
@@ -212,12 +214,12 @@ export class DataProtectionService {
               }
           }
 
-          const masterRecord = await this.db.getItem<{id: string, handle: any}>('sys_handles', this.MASTER_BACKUP_HANDLE_KEY);
+          const masterRecord = await this.db.getItem<{id: string, handle: FileSystemFileHandle}>('sys_handles', this.MASTER_BACKUP_HANDLE_KEY);
           if (masterRecord && masterRecord.handle) {
               this.masterFileHandle = masterRecord.handle;
           }
 
-      } catch (e) {}
+      } catch {}
   }
 
   async verifyPermission(fileHandle: FileSystemDirectoryHandle, withUserGesture: boolean) {
@@ -228,7 +230,7 @@ export class DataProtectionService {
         try {
             const result = await handle.requestPermission(options);
             return result === 'granted';
-        } catch (e) { return false; }
+        } catch { return false; }
     }
     return false;
   }
@@ -240,7 +242,7 @@ export class DataProtectionService {
     }
 
     try {
-      this.vaultHandle = await (window as any).showDirectoryPicker({ 
+      this.vaultHandle = await (window as unknown as { showDirectoryPicker: (options: Record<string, unknown>) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker({ 
           id: 'simbiose-secure-vault', 
           mode: 'readwrite' 
       });
@@ -256,8 +258,8 @@ export class DataProtectionService {
           const encrypted = await this.crypto.encryptData(JSON.stringify(data));
           await this.writeToVault(this.MASTER_FILENAME, JSON.stringify(encrypted, null, 2));
       }
-    } catch (e: any) {
-      if (e.name !== 'AbortError') {
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') {
           this.ui.show('Falha ao ativar Cofre.', 'ERROR');
       }
       this.isVaultActive.set(false);
@@ -279,7 +281,7 @@ export class DataProtectionService {
           // Tenta ler o Mestre
           try {
               targetFile = await this.vaultHandle.getFileHandle(this.MASTER_FILENAME);
-          } catch (e) {
+          } catch {
               console.log('[Vault] Arquivo mestre não encontrado.');
           }
 
@@ -301,7 +303,7 @@ export class DataProtectionService {
                       // Fallback para legado (texto plano)
                       data = json;
                   }
-              } catch (e) {
+              } catch {
                   if (interactive) this.ui.show('Senha incorreta ou arquivo corrompido.', 'ERROR');
                   return false;
               }
@@ -312,7 +314,7 @@ export class DataProtectionService {
                   return true;
               }
           }
-      } catch (e) {
+      } catch {
           if (interactive) this.ui.show('Erro ao ler Cofre.', 'ERROR');
       }
       return false;
@@ -326,16 +328,17 @@ export class DataProtectionService {
     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  private canonicalStringify(obj: any): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private canonicalStringify(obj: unknown): string {
     if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
     if (Array.isArray(obj)) return JSON.stringify(obj.map(item => JSON.parse(this.canonicalStringify(item))));
     const sortedKeys = Object.keys(obj).sort();
-    const result: any = {};
+    const result: Record<string, unknown> = {};
     sortedKeys.forEach(key => result[key] = JSON.parse(this.canonicalStringify(obj[key])));
     return JSON.stringify(result);
   }
 
-  async mineBlock(data: any, actionType: string): Promise<CryptoBlock> {
+  async mineBlock(data: Record<string, unknown>, actionType: string): Promise<CryptoBlock> {
     const currentChain = this.ledger();
     const prevHash = currentChain.length > 0 ? currentChain[currentChain.length - 1].hash : '0000000000000000000000000000000000000000000000000000000000000000';
     const index = currentChain.length + 1;
@@ -374,7 +377,7 @@ export class DataProtectionService {
     if (saved) this.ledger.set(JSON.parse(saved));
   }
 
-  async syncDataToVault(filename: string, data: any) {
+  async syncDataToVault(filename: string, data: Record<string, unknown>) {
     if (!this.isVaultActive()) return;
     // Encripta antes de salvar no cofre
     const encrypted = await this.crypto.encryptData(JSON.stringify(data));
@@ -388,7 +391,7 @@ export class DataProtectionService {
       const writable = await fileHandle.createWritable();
       await writable.write(content);
       await writable.close();
-    } catch (e) {}
+    } catch {}
   }
   
   public async readLatestFromVault(): Promise<{data: string, timestamp: string} | null> {
@@ -399,7 +402,7 @@ export class DataProtectionService {
         // Não lemos o conteúdo inteiro para não pesar, apenas confirmamos existência e timestamp.
         // O status "BLINDADO" depende apenas de o arquivo existir e ser acessível.
         return { data: 'PROTECTED', timestamp: file.lastModified.toString() }; 
-    } catch (e) {
+    } catch {
         // Se falhar (arquivo não existe ou sem permissão), retorna null para status EXPOSTO.
         return null; 
     }

@@ -48,8 +48,8 @@ export class UiService {
               await document.documentElement.requestFullscreen().catch(() => {});
           }
           
-          if (screen.orientation && (screen.orientation as any).lock) {
-              await (screen.orientation as any).lock('landscape').catch((e: any) => console.warn('Orientation lock failed:', e));
+          if (screen.orientation && (screen.orientation as unknown as Record<string, unknown>)['lock']) {
+              await ((screen.orientation as unknown as Record<string, unknown>)['lock'] as (orientation: string) => Promise<void>)('landscape').catch((e: unknown) => console.warn('Orientation lock failed:', e));
           }
       } catch (e) {
           console.warn('Rotation not supported', e);
@@ -58,14 +58,14 @@ export class UiService {
 
   public async unlockOrientation() {
       try {
-          if (screen.orientation && (screen.orientation as any).unlock) {
-              (screen.orientation as any).unlock();
+          if (screen.orientation && (screen.orientation as unknown as Record<string, unknown>)['unlock']) {
+              ((screen.orientation as unknown as Record<string, unknown>)['unlock'] as () => void)();
           }
           // Sai do fullscreen se não estivermos no modo Kiosk forçado
           if (document.fullscreenElement && !localStorage.getItem('simbiose_kiosk_active')) {
               await document.exitFullscreen().catch(() => {});
           }
-      } catch (e) {}
+      } catch {}
   }
 
   // --- GLOBAL IMAGE VIEWER ---
@@ -83,11 +83,15 @@ export class UiService {
   }
   
   public async requestPushPermission() {
-      if (!('Notification' in window)) return;
-      const permission = await Notification.requestPermission();
-      this.pushPermissionStatus.set(permission);
-      if (permission === 'granted') {
-          this.showNativeNotification('Notificações Ativadas', 'O Sistema Simbiose agora pode te alertar sobre eventos importantes.');
+      try {
+          if (!('Notification' in window)) return;
+          const permission = await Notification.requestPermission();
+          this.pushPermissionStatus.set(permission);
+          if (permission === 'granted') {
+              this.showNativeNotification('Notificações Ativadas', 'O Sistema Simbiose agora pode te alertar sobre eventos importantes.');
+          }
+      } catch (e) {
+          console.warn('Push permission request failed:', e);
       }
   }
 
@@ -101,7 +105,7 @@ export class UiService {
                           icon: icon || this.APP_LOGO,
                           vibrate: [200, 100, 200],
                           tag: 'simbiose-alert'
-                      } as any);
+                      } as NotificationOptions);
                   });
               } else {
                   new Notification(title, { body, icon: icon || this.APP_LOGO });
@@ -135,10 +139,10 @@ export class UiService {
   public exitFullscreen() {
     this.isFullscreen.set(false);
     localStorage.removeItem('simbiose_kiosk_active');
-    const doc = document as any;
-    if (document.fullscreenElement || doc.webkitFullscreenElement) {
-      if (doc.exitFullscreen) doc.exitFullscreen().catch((err: any) => console.warn('Exit blocked:', err));
-      else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+    const doc = document as unknown as Record<string, unknown>;
+    if (document.fullscreenElement || doc['webkitFullscreenElement']) {
+      if (doc['exitFullscreen']) (doc['exitFullscreen'] as () => Promise<void>)().catch((err: unknown) => console.warn('Exit blocked:', err));
+      else if (doc['webkitExitFullscreen']) (doc['webkitExitFullscreen'] as () => void)();
     }
   }
   
@@ -146,7 +150,7 @@ export class UiService {
 
   playTone(type: 'SUCCESS' | 'ERROR' | 'SHUTTER' | 'URGENT') {
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContext = window.AudioContext || (window as unknown as Record<string, unknown>)['webkitAudioContext'] as typeof window.AudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
@@ -176,6 +180,6 @@ export class UiService {
         osc.start(); osc.stop(ctx.currentTime + 0.3);
         this.vibrate([100, 50, 100]);
       }
-    } catch (e) {}
+    } catch {}
   }
 }

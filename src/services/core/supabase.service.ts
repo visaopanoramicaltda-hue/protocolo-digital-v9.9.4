@@ -32,7 +32,7 @@ export class SupabaseService {
     return Promise.resolve({ data: [{ ...pessoa, id: crypto.randomUUID() }], error: null });
   }
 
-  criarProtocolo(protocolo: any) {
+  criarProtocolo(protocolo: Record<string, unknown>) {
     const id = protocolo.id || crypto.randomUUID();
     return Promise.resolve({ data: [{ ...protocolo, id }], error: null });
   }

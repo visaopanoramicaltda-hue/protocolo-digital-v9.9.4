@@ -9,13 +9,13 @@ const http = require('http');
 // CONFIGURAÇÃO DO SERVIDOR
 // ================================
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos do Angular
-app.use(express.static(path.join(__dirname, 'dist/browser')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 const fs = require('fs');
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
@@ -164,7 +164,7 @@ wss.on('connection', (ws, req) => {
 // SPA FALLBACK
 // ================================
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist/browser/index.html'));
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
 // ================================

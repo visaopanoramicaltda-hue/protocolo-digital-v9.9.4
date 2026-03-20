@@ -27,7 +27,8 @@ export class SimbioseSyncService {
    * Este método foi desativado e não executa mais a sincronização de dados de clientes.
    * A sincronização de INTELIGÊNCIA agora é feita pelo QuantumNetService.
    */
-  async sincronizar(funcaoUsuario: FuncaoUsuario) {
+  async sincronizar(_funcaoUsuario: FuncaoUsuario) {
+    void _funcaoUsuario;
     if (this.sincronizando()) return;
 
     console.log('[Quantum Sync] Modo de Sincronização Central Desativado. Usando rede P2P Darkseid.');

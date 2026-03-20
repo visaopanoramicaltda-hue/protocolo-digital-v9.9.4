@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { UiService } from './ui.service';
 import { DbService, InboxMessage, LinkedCondo } from './db.service';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare let google: any;
 
 @Injectable({
@@ -11,6 +12,7 @@ declare let google: any;
 export class GoogleDriveService {
   private ui = inject(UiService);
   private db = inject(DbService);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private tokenClient: any = null; 
   private accessToken: string | null = null;
 
@@ -32,6 +34,7 @@ export class GoogleDriveService {
       client_id: clientId,
       // SCOPE EXPANDIDO: Permite ler metadados para encontrar relatórios de outros condomínios
       scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       callback: (response: any) => {
         if (response.error !== undefined) {
           console.error('Auth Error', response);
@@ -59,6 +62,7 @@ export class GoogleDriveService {
     }
 
     return new Promise((resolve) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tokenClient.callback = async (resp: any) => {
         if (resp.error) {
            this.ui.show('Acesso ao Google Negado.', 'ERROR');
@@ -106,6 +110,7 @@ export class GoogleDriveService {
 
       // Trigger Auth Flow
       if (google && google.accounts) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           this.tokenClient.callback = async (resp: any) => {
               if (resp.error) {
                   this.ui.show('Falha na conexão de rede.', 'ERROR');
@@ -156,17 +161,19 @@ export class GoogleDriveService {
       }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async downloadFile(fileId: string): Promise<any> {
       try {
           const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
               headers: { 'Authorization': `Bearer ${this.accessToken}` }
           });
           return await response.json();
-      } catch (e) {
+      } catch {
           return null;
       }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private processNetworkReport(report: any) {
       // 1. Atualiza lista de condomínios linkados
       if (report.condoId && report.nomeCondominio) {

@@ -18,7 +18,7 @@ export class SimbioseOrquestradorService {
   /* ===================== LLaMA =====================
      Motor lógico, seco, sem criatividade
   =================================================== */
-  async executarLLaMA(dados: any): Promise<DecisaoLLaMA> {
+  async executarLLaMA(dados: Record<string, unknown>): Promise<DecisaoLLaMA> {
 
     // Regras duras (determinísticas)
     if (dados.transportadora && dados.transportadora !== 'Não identificado') {
@@ -49,7 +49,7 @@ export class SimbioseOrquestradorService {
   =================================================== */
   async executarGemini(
     pessoa: { nome: string; tipo: string },
-    protocolo: any
+    protocolo: Record<string, unknown>
   ): Promise<string> {
 
     if (pessoa.tipo === 'MORADOR') {
@@ -83,8 +83,8 @@ Status atual: ${protocolo.status}
 
   /* ===================== ORQUESTRAÇÃO FINAL ===================== */
   async executarFluxoCompleto(input: {
-    pessoa: any;
-    protocolo: any;
+    pessoa: Record<string, unknown>;
+    protocolo: Record<string, unknown>;
   }) {
 
     // 1️⃣ LLaMA decide
@@ -92,7 +92,7 @@ Status atual: ${protocolo.status}
 
     // 2️⃣ Gemini explica
     const mensagem = await this.executarGemini(
-      { nome: input.pessoa.nome, tipo: decisao.tipoPessoa },
+      { nome: input.pessoa['nome'] as string, tipo: decisao['tipoPessoa'] as string },
       input.protocolo
     );
 

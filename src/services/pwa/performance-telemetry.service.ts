@@ -15,28 +15,22 @@ export class PerformanceTelemetryService {
   private initWebVitals() {
     if (typeof window !== 'undefined' && 'PerformanceObserver' in window) {
       try {
-        new PerformanceObserver((entryList) => {
-          for (const entry of entryList.getEntries()) {
-            // LCP
-          }
+        new PerformanceObserver(() => {
+          // LCP
         }).observe({ type: 'largest-contentful-paint', buffered: true });
-      } catch (e) {}
+      } catch {}
 
       try {
-        new PerformanceObserver((entryList) => {
-          for (const entry of entryList.getEntries() as unknown[]) {
-            // FID / INP
-          }
+        new PerformanceObserver(() => {
+          // FID / INP
         }).observe({ type: 'first-input', buffered: true });
-      } catch (e) {}
+      } catch {}
 
       try {
-        new PerformanceObserver((entryList) => {
-          for (const entry of entryList.getEntries() as unknown[]) {
-            // CLS
-          }
+        new PerformanceObserver(() => {
+          // CLS
         }).observe({ type: 'layout-shift', buffered: true });
-      } catch (e) {}
+      } catch {}
     }
   }
 

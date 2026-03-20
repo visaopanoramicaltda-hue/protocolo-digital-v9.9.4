@@ -219,6 +219,11 @@
                 <p class="text-gray-500 truncate">
                     Rast: <span class="font-bold text-gray-900">{{ item.codigoRastreio || 'S/N' }}</span>
                 </p>
+                @if (item.quemRetirou === 'BAIXA MANUAL') {
+                    <p class="text-red-600 font-black uppercase text-[9px] mt-1 bg-red-100 inline-block px-1.5 py-0.5 rounded border border-red-200">
+                        Baixa Manual
+                    </p>
+                }
             </div>
         </div>
 

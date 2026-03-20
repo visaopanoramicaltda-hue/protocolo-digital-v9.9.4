@@ -28,7 +28,11 @@ export class OfflineSyncService {
     
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
       navigator.serviceWorker.ready.then(swRegistration => {
-        (swRegistration as any).sync.register('sync-offline-requests').catch(() => {});
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sync = (swRegistration as any)['sync'];
+        if (sync && typeof sync['register'] === 'function') {
+            (sync['register'] as (tag: string) => Promise<void>)('sync-offline-requests').catch(() => {});
+        }
       });
     }
   }
@@ -43,7 +47,7 @@ export class OfflineSyncService {
     for (const req of queue) {
       try {
         // Process request
-      } catch (err) {
+      } catch {
         this.queueRequest(req);
       }
     }
@@ -52,7 +56,7 @@ export class OfflineSyncService {
   private saveQueue() {
     try {
       localStorage.setItem('pwa_sync_queue', JSON.stringify(this.syncQueue));
-    } catch (e) {}
+    } catch {}
   }
 
   private loadQueue() {
@@ -61,6 +65,6 @@ export class OfflineSyncService {
       if (saved) {
         this.syncQueue = JSON.parse(saved);
       }
-    } catch (e) {}
+    } catch {}
   }
 }

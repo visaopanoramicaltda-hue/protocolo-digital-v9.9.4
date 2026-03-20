@@ -7,7 +7,7 @@ import { Injectable } from '@angular/core';
 export type FilaItem = {
   id: string;
   tipo: 'PROTOCOLO' | 'NOTIFICACAO';
-  payload: any;
+  payload: Record<string, unknown>;
   status: 'PENDENTE' | 'SINCRONIZADO' | 'BLOQUEADO';
   criadoEm: string;
 };

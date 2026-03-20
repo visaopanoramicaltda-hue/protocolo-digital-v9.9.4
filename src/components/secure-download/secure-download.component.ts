@@ -3,7 +3,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { SimbioseStorageService } from '../../services/core/simbiose-storage.service';
 
 @Component({
   selector: 'app-secure-download',

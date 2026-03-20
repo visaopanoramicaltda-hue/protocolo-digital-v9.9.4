@@ -61,6 +61,7 @@ export interface SimbioseMemory {
   residentAliases: Record<string, string>; 
   lastTraining: number;
   neuralVersion?: number; 
+  immutableDataset?: string; // NOVO: Dataset gerado a partir do histórico
 }
 
 @Injectable({
@@ -195,13 +196,72 @@ export class GeminiService {
 
   // --- HYBRID OCR ENGINE + LOGIC RESOLVER ---
   
-  public async enviarParaAnalise(contexto: string): Promise<OcrExtractionResult> {
-      const prompt = `
+  private async enviarParaAnaliseTurbo(contexto: string, regexHints: Record<string, unknown>): Promise<OcrExtractionResult> {
+      const systemInstruction = `
         A partir de agora, o processamento de imagem/OCR bruto é realizado localmente via Google ML Kit.
         Entrada de Dados: Você receberá strings de texto pré-processadas.
         Missão: Sua função é exclusivamente a análise lógica, categorização e validação dos dados recebidos.
         Modo Econômico: Responda de forma concisa (JSON) para minimizar o uso de tokens de saída.
         Foco: Logística, conferência de etiquetas e protocolos de segurança.
+        
+        Por que isso economiza dinheiro?
+        Gemini Flash 1.5: Você deixará de enviar arquivos de imagem pesados para a nuvem (que consomem muitos tokens).
+        Input de Texto: Enviar apenas o texto extraído pelo ML Kit custa frações de centavos ou entra na cota gratuita do nível gratuito (Free Tier), já que o volume de caracteres é baixo comparado a uma imagem em alta resolução.
+        
+        ${this.memory.immutableDataset ? `[DATASET IMUTÁVEL - APRENDIZADO CONTÍNUO SIMBIOSE]\n${this.memory.immutableDataset}\nUse este dataset validado pelo sistema Simbiose para melhorar a precisão da extração de dados e ensinar seus auxiliares a reconhecer padrões de apelidos, blocos e apartamentos.\n` : ''}
+        
+        REGRAS:
+        - Extraia destinatario, bloco, apto EXATAMENTE como na etiqueta, mas use o Dataset Imutável para inferir apelidos comuns (ex: Jão -> João) se o bloco e apartamento baterem com precisão.
+        - Se o RegexHints contiver um qrCode, extraia o código de rastreio dele (removendo URLs, pegando apenas o ID alfanumérico principal). Se o qrCode for apenas um código, use-o como rawRastreio.
+        - Se não estiver CLARO e LEGÍVEL, retorne vazio.
+        - Não adivinhe, não deduza fora do contexto do Dataset Imutável.
+        - Retorne apenas JSON: {destinatario, bloco, apto, transportadora, rawRastreio, confianca}
+      `;
+      
+      const prompt = `
+        Texto: "${contexto}"
+        RegexHints: ${JSON.stringify(regexHints)}
+      `;
+      
+      try {
+          const response = await this.genAI.models.generateContent({
+            model: 'gemini-3.1-flash-lite-preview',
+            contents: prompt,
+            config: { 
+              systemInstruction,
+              responseMimeType: 'application/json', 
+              temperature: 0.0 
+            }
+          });
+          const parsed = JSON.parse(response.text || '{}');
+          return {
+              destinatario: parsed.destinatario || '',
+              bloco: parsed.bloco || '',
+              apto: parsed.apto || '',
+              localizacao: (parsed.bloco && parsed.apto) ? `${parsed.bloco} ${parsed.apto}` : '',
+              transportadora: parsed.transportadora || 'LEITURA MANUAL',
+              confianca: parsed.confianca || 0.5,
+              rawRastreio: parsed.rawRastreio,
+              condicaoVisual: 'Intacta',
+          };
+      } catch {
+          return this.emptyResult();
+      }
+  }
+
+  public async enviarParaAnalise(contexto: string): Promise<OcrExtractionResult> {
+      const systemInstruction = `
+        A partir de agora, o processamento de imagem/OCR bruto é realizado localmente via Google ML Kit.
+        Entrada de Dados: Você receberá strings de texto pré-processadas.
+        Missão: Sua função é exclusivamente a análise lógica, categorização e validação dos dados recebidos.
+        Modo Econômico: Responda de forma concisa (JSON) para minimizar o uso de tokens de saída.
+        Foco: Logística, conferência de etiquetas e protocolos de segurança.
+        
+        Por que isso economiza dinheiro?
+        Gemini Flash 1.5: Você deixará de enviar arquivos de imagem pesados para a nuvem (que produz muitos tokens).
+        Input de Texto: Enviar apenas o texto extraído pelo ML Kit custa frações de centavos ou entra na cota gratuita do nível gratuito (Free Tier), já que o volume de caracteres é baixo comparado a uma imagem em alta resolução.
+        
+        ${this.memory.immutableDataset ? `[DATASET IMUTÁVEL - APRENDIZADO CONTÍNUO SIMBIOSE]\n${this.memory.immutableDataset}\nUse este dataset validado pelo sistema Simbiose para melhorar a precisão da extração de dados e ensinar seus auxiliares a reconhecer padrões de apelidos, blocos e apartamentos.\n` : ''}
         
         CAMPOS:
         1. destinatario: Nome completo.
@@ -211,17 +271,24 @@ export class GeminiService {
         5. rawRastreio: Código de rastreio.
         
         REGRAS DE VALIDAÇÃO (CRÍTICO):
-        - EXTRAÇÃO ESTRITA DE NOME: Extraia o nome EXATAMENTE como aparece no texto. NUNCA tente adivinhar, corrigir, autocompletar ou "alinhar" o nome. Se o nome estiver incompleto ou estranho, retorne exatamente o que leu.
+        - EXTRAÇÃO ESTRITA: SE VOCÊ NÃO TIVER 100% DE CERTEZA, RETORNE UMA STRING VAZIA ('') PARA O CAMPO. NÃO TENTE COMPLETAR DADOS FALTANTES. A PRECISÃO É MAIS IMPORTANTE QUE O PREENCHIMENTO.
+        - NOME: Extraia o nome EXATAMENTE como aparece no texto. Use o Dataset Imutável APENAS para validar apelidos SE o bloco e apartamento baterem com precisão.
+        - BLOCO E APARTAMENTO: Extraia EXATAMENTE como aparecem na etiqueta. NUNCA invente, deduza ou tente adivinhar. Se não estiver CLARO e LEGÍVEL na etiqueta, retorne vazio.
         - A transportadora deve ser identificada PRIMEIRO.
-        - Com base na transportadora, valide o formato do código de rastreio:
+        - CÓDIGO DE RASTREIO (EXTREMA PRECISÃO): O código de rastreio DEVE corresponder exatamente ao padrão da transportadora. Se houver qualquer dúvida, ou se não for um código válido, DEIXE O CAMPO VAZIO.
+          - Se o texto contiver um "QR Code/Lens", extraia o código de rastreio dele (removendo URLs, pegando apenas o ID alfanumérico principal). Se for apenas um código, use-o como rawRastreio.
           - CORREIOS: 2 letras + 9 números + 2 letras (ex: AA123456789BR).
-          - SHOPEE (SPX): Geralmente começa com BR seguido de números.
-          - MERCADO LIVRE: Numérico.
-          - AMAZON: Começa com TBA.
-        - O texto "VESNINATARIO" ou similares (ex: "DESTINATARIO") NUNCA é um código de rastreio. Ignore-os.
-        - Se o código de rastreio não corresponder ao padrão da transportadora detectada, NÃO invente um código. Deixe vazio.
+          - SHOPEE (SPX): Começa com BR seguido de 10 a 15 números.
+          - MERCADO LIVRE: Começa com MLB seguido de 10 a 15 números.
+          - AMAZON: Começa com TBA ou AMZ seguido de 10 a 15 números.
+          - LOGGI: Começa com LOG seguido de 10 a 15 números.
+          - JADLOG: Exatamente 14 números ou JAD seguido de 10 a 15 números.
+          - OUTROS: 3 letras seguidas de 10 a 15 números.
+        - O texto "VESNINATARIO", "DESTINATARIO", "REMETENTE", "PEDIDO", "NOTA" NUNCA é um código de rastreio. Ignore-os.
         - NÃO adivinhe NENHUM dado. Se não tiver certeza absoluta, deixe o campo vazio.
-        
+      `;
+      
+      const prompt = `
         TEXTO:
         "${contexto}"
       `;
@@ -246,6 +313,7 @@ export class GeminiService {
             model: 'gemini-3.1-flash-lite-preview',
             contents: prompt,
             config: {
+              systemInstruction: systemInstruction,
               responseMimeType: 'application/json',
               responseSchema: responseSchema,
               temperature: 0.1
@@ -305,7 +373,19 @@ export class GeminiService {
         // [REGEX DE ÚLTIMA GERAÇÃO] Auxilia na extração preliminar
         const regexHints = this.scannerV4.assistWithRegex(rawText);
         
-        if (filteredText && filteredText.length > 5) {
+        // Adiciona o QR Code nas dicas para o Gemini
+        if (localHints.qrCode) {
+            regexHints['qrCode'] = localHints.qrCode;
+        }
+        
+        // [MOTOR DEDICADO DE RASTREIO]
+        // Aplica a verdade absoluta do regex. O QR Code será analisado pelo Gemini.
+        const dedicatedRastreio = regexHints.rastreio;
+
+        if (turboActive) {
+            // [MODO TURBO] Análise lógica ultra-rápida (menos tokens)
+            rawResult = await this.enviarParaAnaliseTurbo(filteredText, regexHints);
+        } else if (filteredText && filteredText.length > 5) {
             // [GEMINI VEREDITO] Envia o texto filtrado + dicas de regex para análise lógica
             const promptContext = `
               Texto Filtrado (OCR): "${filteredText}"
@@ -314,24 +394,69 @@ export class GeminiService {
             `;
             
             rawResult = await this.enviarParaAnalise(promptContext);
-            
-            // [GOOGLE LENS / QR CODE] Prioriza o código de rastreio lido via scanner de código
-            if (localHints.qrCode) {
-                rawResult.rawRastreio = localHints.qrCode;
-            } else if (!rawResult.rawRastreio && regexHints.rastreio) {
-                rawResult.rawRastreio = regexHints.rastreio;
-            }
         } else {
             // Fallback para o parser local se o texto for muito curto
             const scanResult = await this.scannerV4.processScan(imageBase64);
             rawResult = {
                 destinatario: scanResult.destinatario,
                 transportadora: scanResult.transportadora,
-                rawRastreio: localHints.qrCode || regexHints.rastreio,
+                rawRastreio: dedicatedRastreio,
                 confianca: scanResult.confidence / 100,
                 localizacao: regexHints.bloco && regexHints.apto ? `${regexHints.bloco} ${regexHints.apto}` : '',
                 condicaoVisual: 'Intacta'
             };
+        }
+
+        // [MOTOR DEDICADO DE RASTREIO] - Aplica a verdade absoluta do regex
+        if (dedicatedRastreio) {
+            rawResult.rawRastreio = dedicatedRastreio;
+        } else if (localHints.qrCode) {
+            // Se o usuário escaneou um QR Code, ele tem prioridade sobre o Gemini para o rastreio
+            let qr = localHints.qrCode.trim();
+            if (qr.endsWith('/')) qr = qr.slice(0, -1);
+            
+            let possibleTracking = '';
+            try {
+                // Tenta fazer parse como URL
+                const url = new URL(qr);
+                
+                // Tenta pegar o primeiro parâmetro de query que pareça um código
+                let queryParam = '';
+                url.searchParams.forEach((value) => {
+                    if (!queryParam && value.length > 5) {
+                        queryParam = value;
+                    }
+                });
+                
+                // Tenta pegar o último segmento do path
+                const pathSegments = url.pathname.split('/').filter(s => s.length > 0);
+                const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : '';
+                
+                // Prefere o query param se existir e for longo, senão o path segment, senão a URL inteira
+                possibleTracking = queryParam || lastSegment || qr;
+            } catch (e) {
+                // Não é URL, usa o QR code inteiro (ou tenta separar por = ou / se for uma string mal formatada)
+                if (qr.includes('http') && qr.includes('=')) {
+                    possibleTracking = qr.split('=').pop() || '';
+                } else if (qr.includes('http') && qr.includes('/')) {
+                    possibleTracking = qr.split('/').pop() || '';
+                } else {
+                    possibleTracking = qr;
+                }
+            }
+            
+            // Remove espaços e hífens para testar se é alfanumérico
+            const cleanTracking = possibleTracking.replace(/[\s-]/g, '');
+            
+            // Só usa se parecer um código de rastreio (alfanumérico, mais de 5 caracteres, e contém pelo menos um número)
+            if (cleanTracking && cleanTracking.length > 5 && /^[A-Za-z0-9]+$/.test(cleanTracking) && /\d/.test(cleanTracking)) {
+                rawResult.rawRastreio = possibleTracking; // Mantém a formatação original
+            }
+        }
+        
+        // Garante que não seja undefined/null
+        if (!rawResult.rawRastreio) {
+            rawResult.rawRastreio = '';
         }
     } catch {
         rawResult = this.emptyResult();
@@ -358,7 +483,9 @@ export class GeminiService {
     const moradores: Morador[] = [
       { id: '1', nome: 'JOAO SILVA', bloco: 'A', apto: '101' },
       { id: '2', nome: 'MARIA SOUZA', bloco: 'A', apto: '101' },
-      { id: '3', nome: 'PEDRO SANTOS', bloco: 'B', apto: '202' }
+      { id: '3', nome: 'PEDRO SANTOS', bloco: 'B', apto: '202' },
+      { id: '4', nome: 'JOAO SILVA SAURO MENEZES', bloco: '1', apto: '101' },
+      { id: '5', nome: 'MARIA SILVA', bloco: '1', apto: '101' }
     ];
 
     const scenarios = [
@@ -366,7 +493,8 @@ export class GeminiService {
       { raw: { destinatario: 'J0AO SILVA', localizacao: 'BL A AP 101', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA' },
       { raw: { destinatario: 'MARIA', localizacao: 'BL A AP 101', transportadora: 'CORREIOS', confianca: 0.8 }, expected: 'MARIA SOUZA' },
       { raw: { destinatario: 'PEDRO', localizacao: 'BL B AP 202', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'PEDRO SANTOS' },
-      { raw: { destinatario: 'JOAO SILVA', localizacao: 'BL B AP 202', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA' } // Should not match
+      { raw: { destinatario: 'JOAO SILVA', localizacao: 'BL B AP 202', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA' }, // Should not match
+      { raw: { destinatario: 'JAO', localizacao: 'BL 1 AP 101', transportadora: 'CORREIOS', confianca: 0.9 }, expected: 'JOAO SILVA SAURO MENEZES' }
     ];
 
     console.log('[AccuracyTest] Iniciando...');
@@ -385,111 +513,165 @@ export class GeminiService {
       const rawName = this.normalizeString(raw.destinatario);
       
       // 1. TENTATIVA POR ALIAS (MEMÓRIA OCULTA)
-      // Verifica se esse nome "errado" já foi mapeado antes (Ex: Setora -> Sefora)
       if (this.memory.residentAliases && this.memory.residentAliases[rawName]) {
           const residentId = this.memory.residentAliases[rawName];
           const resident = moradores.find(m => m.id === residentId);
           if (resident) {
-              console.log('[Logic] Alias Detectado! Autopreenchendo:', resident.nome);
               finalResult.destinatario = resident.nome;
               finalResult.matchedMoradorId = resident.id;
               finalResult.wasAutoCorrected = true;
+              finalResult.bloco = resident.bloco;
+              finalResult.apto = resident.apto;
               return finalResult;
           }
       }
 
-      // 2. TRIANGULAÇÃO DE BLOCO/APTO COM GUARD RAIL EXTREMO (MODO SNIPER)
-      const locationData = this.parseLocationString(raw.localizacao) || this.parseLocationString(raw.destinatario);
+      // 2. TENTATIVA POR NOME DIRETO (PRIORIDADE MÁXIMA)
+      const moradorPorNome = moradores.find(m => this.normalizeString(m.nome) === rawName);
+      if (moradorPorNome) {
+          finalResult.matchedMoradorId = moradorPorNome.id;
+          finalResult.bloco = moradorPorNome.bloco;
+          finalResult.apto = moradorPorNome.apto;
+          return finalResult;
+      }
+
+      // 3. TRIANGULAÇÃO DE BLOCO/APTO
+      let bloco = raw.bloco;
+      let apto = raw.apto;
+
+      if (!bloco || !apto) {
+          const locationData = this.parseLocationString(raw.localizacao) || this.parseLocationString(raw.destinatario);
+          if (locationData) {
+              bloco = locationData.bloco;
+              apto = locationData.apto;
+          }
+      }
       
-      if (locationData) {
-          const { bloco, apto } = locationData;
-          
+      if (bloco && apto) {
           const moradoresDaUnidade = moradores.filter(m => 
-              this.normalizeString(m.bloco) === bloco && 
-              this.normalizeString(m.apto) === apto
+              this.normalizeString(m.bloco) === this.normalizeString(bloco) && 
+              this.normalizeString(m.apto) === this.normalizeString(apto)
           );
 
-          if (moradoresDaUnidade.length > 0) {
-              let bestMatch = null;
-              let bestScore = 0;
-              const partialMatches = [];
+          if (moradoresDaUnidade.length === 1) {
+              const morador = moradoresDaUnidade[0];
+              finalResult.destinatario = morador.nome;
+              finalResult.matchedMoradorId = morador.id;
+              finalResult.bloco = morador.bloco;
+              finalResult.apto = morador.apto;
+              return finalResult;
+          } else if (moradoresDaUnidade.length > 1) {
+              // Desempate pelo nome lido (rawName)
+              if (rawName && rawName.length >= 2) {
+                  const matchesUnidade = moradoresDaUnidade.map(m => {
+                      const mName = this.normalizeString(m.nome);
+                      let score = this.calculateSimilarity(rawName, mName);
+                      
+                      // Bônus se for substring direta
+                      if (mName.includes(rawName) || rawName.includes(mName)) {
+                          score += 0.5;
+                      } else if (this.isNameMatch(rawName, mName)) {
+                          score += 0.4;
+                      } else {
+                          // Bônus para apelidos/abreviações na primeira palavra (ex: JAO -> JOAO)
+                          const rawWords = rawName.split(' ');
+                          const mWords = mName.split(' ');
+                          if (rawWords.length > 0 && mWords.length > 0) {
+                              const firstWordSim = this.calculateSimilarity(rawWords[0], mWords[0]);
+                              if (firstWordSim >= 0.6) {
+                                  score += 0.4;
+                              }
+                              // Bônus extra se for um apelido muito comum ou prefixo
+                              if (mWords[0].startsWith(rawWords[0]) || rawWords[0].startsWith(mWords[0])) {
+                                  score += 0.2;
+                              }
+                          }
+                      }
+                      return { morador: m, score };
+                  }).sort((a, b) => b.score - a.score);
 
-              for (const morador of moradoresDaUnidade) {
-                  const moradorName = this.normalizeString(morador.nome);
-                  const score = this.calculateSimilarity(rawName, moradorName);
-                  
-                  if (score > bestScore) {
-                      bestScore = score;
-                      bestMatch = morador;
-                  }
-                  
-                  // Check for partial match (e.g., "AYLA" in "AYLA VITORIA")
-                  if (rawName.length >= 3 && (moradorName.includes(rawName) || rawName.includes(moradorName))) {
-                      partialMatches.push(morador);
+                  // Se o melhor match se destacar
+                  if (matchesUnidade[0].score > 0.4) {
+                      if (matchesUnidade.length === 1 || (matchesUnidade[0].score - matchesUnidade[1].score > 0.15)) {
+                          const best = matchesUnidade[0].morador;
+                          finalResult.destinatario = best.nome;
+                          finalResult.matchedMoradorId = best.id;
+                          finalResult.bloco = best.bloco;
+                          finalResult.apto = best.apto;
+                          finalResult.wasAutoCorrected = true;
+                          return finalResult;
+                      }
                   }
               }
-
-              // SNIPER RULE STRICT: 
-              // Aumentado threshold para 0.85 (85% de similaridade).
-              // Isso impede que "MARIA" seja trocado por "JOAO" só porque moram juntos.
-              // Apenas erros de OCR (ex: J0AO -> JOAO) passarão.
-              if (bestMatch && bestScore > 0.85) {
-                  console.log('[Logic] Triangulação Perfeita:', bestMatch.nome);
-                  finalResult.destinatario = bestMatch.nome;
-                  finalResult.matchedMoradorId = bestMatch.id;
-                  finalResult.wasAutoCorrected = true;
-                  return finalResult;
-              } else if (partialMatches.length === 1) {
-                  // Se encontrou exatamente um morador com aquele nome parcial na unidade
-                  const match = partialMatches[0];
-                  console.log('[Logic] Match Parcial Único:', match.nome);
-                  finalResult.destinatario = match.nome;
-                  finalResult.matchedMoradorId = match.id;
-                  finalResult.wasAutoCorrected = true;
-                  return finalResult;
-              } else {
-                  // Se não bateu o nome, MANTÉM O OCR ORIGINAL.
-                  // Nunca adivinhe que é o titular se o nome for diferente.
-                  console.log('[Logic] Unidade detectada, mas nome distinto ou múltiplo. Retornando lista de moradores.');
-                  finalResult.possibleMoradores = moradoresDaUnidade;
-                  finalResult.bloco = bloco;
-                  finalResult.apto = apto;
-              }
+              finalResult.possibleMoradores = moradoresDaUnidade;
           }
       }
 
-      // 3. TENTATIVA FUZZY GLOBAL (Último recurso, muito cauteloso)
+      // 4. TENTATIVA FUZZY GLOBAL (Último recurso, muito cauteloso)
       if (rawName.length > 5) {
           const matches: { morador: Morador, score: number }[] = [];
 
+          const rawLoc: string[] = rawName.match(/\d+/g) || []; // Extrai todos os números do nome lido
+          const rawNameNoNum = rawName.replace(/[0-9]/g, '').trim();
+
           for (const morador of moradores) {
               const moradorName = this.normalizeString(morador.nome);
-              const score = this.calculateSimilarity(rawName, moradorName);
+              const mNameNoNum = moradorName.replace(/[0-9]/g, '').trim();
               
-              // Se o nome for exatamente igual ou contiver o nome escaneado de forma única
-              if (score > 0.85 || (rawName.length > 8 && moradorName.includes(rawName)) || (moradorName.length > 8 && rawName.includes(moradorName))) {
-                  matches.push({ morador, score: Math.max(score, 0.86) });
+              let score = this.calculateSimilarity(rawNameNoNum, mNameNoNum);
+              
+              // Bônus de nome
+              if (mNameNoNum.includes(rawNameNoNum) || rawNameNoNum.includes(mNameNoNum)) {
+                  score += 0.5;
+              } else if (this.isNameMatch(rawNameNoNum, mNameNoNum)) {
+                  score += 0.4;
+              } else if (this.isNameMatch(rawName, moradorName)) {
+                  score += 0.4;
+              }
+
+              // Bônus GIGANTE se o bloco e apartamento baterem (Verdade Absoluta)
+              const mBloco = this.normalizeString(morador.bloco);
+              const mApto = this.normalizeString(morador.apto);
+              const moradorLoc: string[] = moradorName.match(/\d+/g) || [];
+              
+              let locMatch = false;
+              
+              // 1. Se o OCR extraiu bloco e apto e eles batem com o cadastro
+              if (bloco && apto && mBloco === this.normalizeString(bloco) && mApto === this.normalizeString(apto)) {
+                  locMatch = true;
+              } 
+              // 2. Se o nome lido contém os números do bloco e apto do cadastro
+              else if (mBloco && mApto && rawLoc.includes(mBloco) && rawLoc.includes(mApto)) {
+                  locMatch = true;
+              }
+              // 3. Se o nome lido contém os mesmos números que o nome do cadastro
+              else if (rawLoc.length >= 2 && moradorLoc.length >= 2) {
+                  const shared = rawLoc.filter(r => moradorLoc.includes(r));
+                  if (shared.length >= 2) locMatch = true;
+              }
+
+              if (locMatch && score > 0.3) {
+                  // Se o bloco e apto baterem e houver uma similaridade mínima de nome, é ele!
+                  score += 2.0; 
+              }
+
+              if (score > 0.85) {
+                  matches.push({ morador, score });
               }
           }
 
           // Ordena por score
           matches.sort((a, b) => b.score - a.score);
 
-          if (matches.length === 1) {
-              // Match único global: Certeza alta o suficiente para auto-preencher
-              const best = matches[0].morador;
-              console.log('[Logic] Match Global Único:', best.nome);
-              finalResult.destinatario = best.nome;
-              finalResult.matchedMoradorId = best.id;
-              finalResult.wasAutoCorrected = true;
-              return finalResult;
-          } else if (matches.length > 1) {
-              // Múltiplos matches: Se o primeiro for muito superior ao segundo
-              if (matches[0].score - matches[1].score > 0.2) {
+          if (matches.length > 0) {
+              // Se o primeiro tiver um score > 2.0 (LocMatch) ou for muito superior ao segundo
+              if (matches.length === 1 || (matches[0].score - matches[1].score > 0.15)) {
                   const best = matches[0].morador;
-                  console.log('[Logic] Match Global Dominante:', best.nome);
+                  console.log('[Logic] Match Global Dominante/Único:', best.nome);
                   finalResult.destinatario = best.nome;
                   finalResult.matchedMoradorId = best.id;
+                  finalResult.bloco = best.bloco;
+                  finalResult.apto = best.apto;
                   finalResult.wasAutoCorrected = true;
                   return finalResult;
               } else {
@@ -504,21 +686,54 @@ export class GeminiService {
   }
 
   // Helpers de Lógica
+  private isNameMatch(scannedName: string, dbName: string): boolean {
+      if (!scannedName || !dbName) return false;
+      
+      // Remove números para focar apenas no nome (o bloco/apto será tratado separadamente)
+      const cleanScanned = scannedName.replace(/[0-9]/g, '').trim();
+      const cleanDb = dbName.replace(/[0-9]/g, '').trim();
+      
+      const scannedParts = cleanScanned.split(' ').filter(p => p.length > 1);
+      const dbParts = cleanDb.split(' ').filter(p => p.length > 1);
+      
+      if (scannedParts.length === 0 || dbParts.length === 0) return false;
+
+      const allScannedInDb = scannedParts.every(part => dbParts.includes(part));
+      const allDbInScanned = dbParts.every(part => scannedParts.includes(part));
+
+      return allScannedInDb || allDbInScanned;
+  }
+
   private normalizeString(str: string | undefined | null): string {
-    return (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
+    return (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[\/\-]/g, " ").replace(/[^A-Z0-9 ]/g, "").replace(/\s+/g, " ").trim();
   }
 
   private parseLocationString(text: string): { bloco: string, apto: string } | null {
       if (!text) return null;
+      // Normaliza removendo acentos e passando para maiúsculo, mas MANTÉM / e - para ajudar no regex
+      const rawClean = (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      
+      // Tenta formato 1/101 ou 1-101
+      const regexSlash = /([A-Z0-9]+)\s*[\/\-]\s*([0-9]+)/;
+      const matchSlash = rawClean.match(regexSlash);
+      if (matchSlash) return { bloco: matchSlash[1], apto: matchSlash[2] };
+
       const clean = this.normalizeString(text);
       
+      // Tenta formato BL 1 AP 101
       const regexComplex = /BL.*?([A-Z0-9]+).*?AP.*?([0-9]+)/;
       const match = clean.match(regexComplex);
       if (match) return { bloco: match[1], apto: match[2] };
       
-      const simpleParts = clean.split(' ');
-      if (simpleParts.length >= 2 && !isNaN(parseInt(simpleParts[simpleParts.length-1]))) {
-          // Assume último token numérico como apto se houver contexto
+      // Tenta formato onde os dois últimos tokens são números (ex: JOAO 1 101)
+      const parts = clean.split(' ').filter(p => p.trim() !== '');
+      if (parts.length >= 2) {
+          const last = parts[parts.length - 1];
+          const secondLast = parts[parts.length - 2];
+          if (/^\d+$/.test(last) && /^[A-Z0-9]+$/.test(secondLast)) {
+              // Se o último for só número (apto) e o penúltimo for alfanumérico (bloco)
+              return { bloco: secondLast, apto: last };
+          }
       }
       
       return null;
@@ -592,9 +807,55 @@ export class GeminiService {
 
 
   public async retrainSimbioseFromDatabase(): Promise<void> {
-      console.log('[Simbiose] Retreinamento via Gemini iniciado (Simulado).');
-      // No futuro, implementar retreinamento via Gemini se necessário.
-      return Promise.resolve();
+      console.log('[Simbiose] Retreinamento via Gemini iniciado...');
+      this.evolutionStatus.set('EVOLVING');
+      
+      try {
+          // 1. Coleta o histórico de encomendas ENTREGUES
+          const encomendas = this.db.encomendas().filter(e => e.status === 'ENTREGUE');
+          
+          if (encomendas.length === 0) {
+              this.evolutionStatus.set('IDLE');
+              return;
+          }
+
+          // 2. Extrai padrões (Transportadoras mais comuns, Blocos/Aptos mais comuns)
+          const transportadoras = new Set<string>();
+          const blocos = new Set<string>();
+          const aptos = new Set<string>();
+          
+          encomendas.forEach(e => {
+              if (e.transportadora && e.transportadora !== 'LEITURA MANUAL') transportadoras.add(e.transportadora);
+              if (e.bloco) blocos.add(e.bloco);
+              if (e.apto) aptos.add(e.apto);
+          });
+
+          // 3. Constrói o Dataset Imutável
+          const dataset = `
+            [DATASET IMUTÁVEL SIMBIOSE]
+            Total de Amostras Entregues: ${encomendas.length}
+            Transportadoras Frequentes: ${Array.from(transportadoras).slice(0, 10).join(', ')}
+            Padrões de Bloco/Torre: ${Array.from(blocos).slice(0, 10).join(', ')}
+            Padrões de Apartamento/Unidade: ${Array.from(aptos).slice(0, 10).join(', ')}
+            
+            Exemplos de Nomes Validados (Aliases Aprendidos):
+            ${Object.entries(this.memory.residentAliases || {}).slice(0, 5).map(([alias]) => `- Lido como "${alias}" -> Corrigido no sistema`).join('\n')}
+          `;
+
+          this.memory.immutableDataset = dataset;
+          this.memory.lastTraining = Date.now();
+          this.memory.neuralVersion = (this.memory.neuralVersion || 1) + 1;
+          this.saveMemory();
+          
+          this.lastEvolution.set(new Date().toLocaleTimeString());
+          this.evolutionStatus.set('COMPLETE');
+          console.log('[Simbiose] Dataset Imutável gerado com sucesso:', dataset);
+          
+          setTimeout(() => this.evolutionStatus.set('IDLE'), 3000);
+      } catch (error) {
+          console.error('[Simbiose] Falha no retreinamento:', error);
+          this.evolutionStatus.set('IDLE');
+      }
   }
 
   private loadMemory() {

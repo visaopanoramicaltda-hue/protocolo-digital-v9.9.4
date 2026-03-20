@@ -12,7 +12,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { ExclusiveScannerService } from '../../services/exclusive-scanner.service';
 import { PdfService } from '../../services/pdf.service';
 import { SimbioseHashService } from '../../services/core/simbiose-hash.service';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer } from '@angular/platform-browser';
 
 // --- [SERVICE] PAYMENT LOGIC (LOCAL CONTEXT) ---
 @Injectable({ providedIn: 'root' })
@@ -142,7 +142,7 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
   });
   
   // Heartbeat de Telemetria Local
-  private telemetryInterval: any;
+  private telemetryInterval: ReturnType<typeof setInterval> | undefined;
 
   showPaymentModal = signal(false);
   etapa = signal(1); 
@@ -168,7 +168,7 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
   onboardingAdminPassword = signal('');
   
   loading = signal(false);
-  pixData = signal<any>(null);
+  pixData = signal<Record<string, unknown> | null>(null);
   
   isVerifyingPayment = signal(false);
   
@@ -178,8 +178,8 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
   verificationLog = signal<string[]>([]);
 
   // --- ANTI-AUTOFILL HELPER ---
-  removeReadonly(event: any) {
-    event.target.removeAttribute('readonly');
+  removeReadonly(event: Event) {
+    (event.target as HTMLElement).removeAttribute('readonly');
   }
 
   ngOnInit() {
@@ -203,7 +203,7 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
                       const data = JSON.parse(pendingOnboarding);
                       await this.createAdminAccount(data);
                       localStorage.removeItem('simbiose_pending_onboarding');
-                  } catch (e) {
+                  } catch {
                       this.ui.show('Erro ao criar conta. Contate o suporte.', 'ERROR');
                   }
               } else {
@@ -440,22 +440,22 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
       this.proceedToPaymentFlow('PRO');
   }
   
-  async createAdminAccount(data: any) {
+  async createAdminAccount(data: Record<string, unknown>) {
       this.ui.show('Configurando sistema...', 'INFO');
       const currentConfig = this.db.appConfig();
       
       const updatedConfig = { 
           ...currentConfig, 
-          nomeCondominio: data.nomeCondominio.toUpperCase(),
+          nomeCondominio: (data['nomeCondominio'] as string).toUpperCase(),
           activePlan: 'PRO'
       };
       await this.db.saveAppConfig(updatedConfig);
       
-      const hashedPass = await this.hashService.hashText(data.adminPass);
+      const hashedPass = await this.hashService.hashText(data['adminPass'] as string);
       const newAdmin: Porteiro = {
           id: crypto.randomUUID(),
-          nome: data.adminName.toUpperCase(),
-          cpf: data.adminCpf.replace(/\D/g, ''),
+          nome: (data['adminName'] as string).toUpperCase(),
+          cpf: (data['adminCpf'] as string).replace(/\D/g, ''),
           senha: hashedPass,
           isAdmin: true,
           isDev: false
@@ -523,7 +523,7 @@ export class QuantumNetComponent implements OnInit, OnDestroy {
   copiarTexto() {
     const val = this.pixData()?.copiaCola;
     if(val) {
-        navigator.clipboard.writeText(val);
+        navigator.clipboard.writeText(val as string);
         this.ui.show('Código PIX copiado!', 'SUCCESS');
     }
   }

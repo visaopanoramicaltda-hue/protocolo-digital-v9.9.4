@@ -8,6 +8,7 @@ import { Subject } from 'rxjs';
 // --- INTERFACES COM SUPORTE A SHARDING (condoId) ---
 export interface Porteiro { id: string; nome: string; cpf?: string; senha: string; isAdmin: boolean; isDev?: boolean; condoId?: string; hasFingerprint?: boolean; }
 export interface Morador { id: string; nome: string; bloco: string; apto: string; telefone?: string; tags?: string[]; isPrincipal?: boolean; condoId?: string; }
+export interface ContatoCondominio { Nome: string; Bloco: string; Apartamento: string; Celular: string; Principal?: string; }
 export interface Encomenda { id: string; codigoRastreio?: string; transportadora?: string; destinatarioNome: string; bloco?: string; apto?: string; condicaoFisica?: string; dataEntrada: string; dataSaida?: string; status: 'PENDENTE' | 'ENTREGUE' | 'CANCELADA' | 'PRE_LOTE'; porteiroEntradaId: string; porteiroSaidaId?: string; quemRetirou?: string; assinaturaBase64?: string; fotoBase64?: string; integrityHash?: string; observacoes?: string; nomeEntregador?: string; telefoneEntregador?: string; condoId?: string; lastModified?: number; }
 export interface SystemLog { id: string; timestamp: string; action: 'LOGIN' | 'CREATE' | 'UPDATE' | 'DELETE' | 'BACKUP' | 'SECURITY' | 'CONFIG'; details: string; userId: string; userName: string; condoId?: string; }
 
@@ -243,23 +244,32 @@ export class DbService {
     
     // REPARAÇÃO AUTOMÁTICA DE DADOS (Garante que todos usem o condoId canônico do sistema)
     const canonicalTenant = this.appConfig().condoId;
-    if (canonicalTenant) {
+    if (canonicalTenant && this.db) {
         let changed = false;
+        const moradoresToUpdate: Morador[] = [];
+        const encomendasToUpdate: Encomenda[] = [];
+
         for (const m of moradores) {
             if (!m.condoId || m.condoId !== canonicalTenant) {
                 m.condoId = canonicalTenant;
-                await this.saveItem('moradores', m, false);
+                moradoresToUpdate.push(m);
                 changed = true;
             }
         }
         for (const e of encomendas) {
             if (!e.condoId || e.condoId !== canonicalTenant) {
                 e.condoId = canonicalTenant;
-                await this.saveItem('encomendas', e, false);
+                encomendasToUpdate.push(e);
                 changed = true;
             }
         }
-        if (changed) this.notifyChange();
+
+        if (changed) {
+            // Executa atualizações em lote para evitar múltiplas transações
+            if (moradoresToUpdate.length > 0) await this.saveMany('moradores', moradoresToUpdate, false);
+            if (encomendasToUpdate.length > 0) await this.saveMany('encomendas', encomendasToUpdate, false);
+            this.notifyChange();
+        }
     }
 
     this.applyTenantFilter(moradores, encomendas);
@@ -321,11 +331,15 @@ export class DbService {
           // MIGRATION: Ensure packages have a condoId
           if (admin && admin.condoId) {
               const encomendas = await this.getAllFromStore<Encomenda>('encomendas');
+              const toUpdate: Encomenda[] = [];
               for (const enc of encomendas) {
                   if (!enc.condoId) {
                       enc.condoId = admin.condoId;
-                      await this.saveItem('encomendas', enc);
+                      toUpdate.push(enc);
                   }
+              }
+              if (toUpdate.length > 0) {
+                  await this.saveMany('encomendas', toUpdate);
               }
           }
           
@@ -347,7 +361,8 @@ export class DbService {
 
   // --- CORE CRUD (COM BROADCAST AUTOMÁTICO) ---
   
-  async saveItem(storeName: string, item: any, emitEvent = true) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async saveItem(storeName: string, item: unknown, emitEvent = true) {
       if (!this.db) return;
       
       // Timestamp de modificação para resolução de conflitos
@@ -356,32 +371,84 @@ export class DbService {
       }
 
       return new Promise<void>((resolve, reject) => {
-          const tx = this.db!.transaction(storeName, 'readwrite');
-          const store = tx.objectStore(storeName);
-          const req = store.put(item);
-          req.onsuccess = () => {
-              if (emitEvent && ['porteiros', 'moradores', 'encomendas', 'config', 'inbox'].includes(storeName)) {
-                  this.emitDbEvent('UPDATE', storeName as DbStoreName, item, item.id);
-              }
-              resolve();
-          };
-          req.onerror = () => reject(req.error);
+          try {
+              const tx = this.db!.transaction(storeName, 'readwrite');
+              const store = tx.objectStore(storeName);
+              const req = store.put(item);
+              
+              tx.oncomplete = () => {
+                  if (emitEvent && ['porteiros', 'moradores', 'encomendas', 'config', 'inbox'].includes(storeName)) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  this.emitDbEvent('UPDATE', storeName as DbStoreName, item, (item as any).id);
+                  }
+                  resolve();
+              };
+              
+              tx.onerror = () => reject(tx.error || new Error(`Transaction error in ${storeName}`));
+              tx.onabort = () => reject(new Error(`Transaction aborted in ${storeName}`));
+              
+              req.onerror = () => reject(req.error);
+          } catch (e) {
+              reject(e);
+          }
       });
   }
 
   async deleteItem(storeName: string, id: string | number, emitEvent = true) {
       if (!this.db) return;
       return new Promise<void>((resolve, reject) => {
+          try {
+              const tx = this.db!.transaction(storeName, 'readwrite');
+              const store = tx.objectStore(storeName);
+              const req = store.delete(id);
+              
+              tx.oncomplete = () => {
+                  if (emitEvent && ['porteiros', 'moradores', 'encomendas', 'config', 'inbox'].includes(storeName)) {
+                      this.emitDbEvent('DELETE', storeName as DbStoreName, null, id.toString());
+                  }
+                  resolve();
+              };
+              
+              tx.onerror = () => reject(tx.error || new Error(`Transaction error in ${storeName}`));
+              tx.onabort = () => reject(new Error(`Transaction aborted in ${storeName}`));
+              
+              req.onerror = () => reject(req.error);
+          } catch (e) {
+              reject(e);
+          }
+      });
+  }
+
+  async saveMany(storeName: string, items: unknown[], emitEvent = true) {
+      if (!this.db || items.length === 0) return;
+      return new Promise<void>((resolve, reject) => {
           const tx = this.db!.transaction(storeName, 'readwrite');
           const store = tx.objectStore(storeName);
-          const req = store.delete(id);
-          req.onsuccess = () => {
-              if (emitEvent && ['porteiros', 'moradores', 'encomendas', 'config', 'inbox'].includes(storeName)) {
-                  this.emitDbEvent('DELETE', storeName as DbStoreName, null, id.toString());
+          items.forEach(item => {
+              if (typeof item === 'object' && item !== null) {
+                  (item as Record<string, unknown>)['lastModified'] = Date.now();
               }
+              store.put(item);
+          });
+          tx.oncomplete = () => {
+              if (emitEvent) this.notifyChange();
               resolve();
           };
-          req.onerror = () => reject(req.error);
+          tx.onerror = () => reject(tx.error);
+      });
+  }
+
+  async deleteMany(storeName: string, ids: (string | number)[], emitEvent = true) {
+      if (!this.db || ids.length === 0) return;
+      return new Promise<void>((resolve, reject) => {
+          const tx = this.db!.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          ids.forEach(id => store.delete(id));
+          tx.oncomplete = () => {
+              if (emitEvent) this.notifyChange();
+              resolve();
+          };
+          tx.onerror = () => reject(tx.error);
       });
   }
 
@@ -407,11 +474,18 @@ export class DbService {
   async getItem<T>(storeName: string, key: string | number): Promise<T | undefined> {
       if (!this.db) return undefined;
       return new Promise((resolve, reject) => {
-          const tx = this.db!.transaction(storeName, 'readonly');
-          const store = tx.objectStore(storeName);
-          const req = store.get(key);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
+          try {
+              const tx = this.db!.transaction(storeName, 'readonly');
+              const store = tx.objectStore(storeName);
+              const req = store.get(key);
+              
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+              tx.onerror = () => reject(tx.error);
+              tx.onabort = () => reject(new Error(`Transaction aborted in ${storeName} (GET)`));
+          } catch (e) {
+              reject(e);
+          }
       });
   }
 
@@ -476,9 +550,84 @@ export class DbService {
   async addMorador(m: Morador) {
       const tenant = this.currentTenantId();
       if (tenant && !m.condoId) m.condoId = tenant;
+
+      // Verifica duplicidade (Nome + Bloco + Apto)
+      const isDuplicate = this.moradores().some(ex => 
+          ex.id !== m.id &&
+          ex.nome.toUpperCase() === m.nome.toUpperCase() &&
+          ex.bloco.toUpperCase() === m.bloco.toUpperCase() &&
+          ex.apto.toUpperCase() === m.apto.toUpperCase()
+      );
+
+      if (isDuplicate) {
+          throw new Error(`Morador já cadastrado: ${m.nome} no ${m.bloco}/${m.apto}`);
+      }
+
       await this.saveItem('moradores', m);
-      this.moradores.update(l => [...l, m]);
+      
+      const index = this.moradores().findIndex(ex => ex.id === m.id);
+      if (index !== -1) {
+          this.moradores.update(l => l.map(ex => ex.id === m.id ? m : ex));
+      } else {
+          this.moradores.update(l => [...l, m]);
+      }
+      
       this.notifyChange();
+  }
+
+  async importarContatos(contatos: ContatoCondominio[]) {
+      const tenant = this.currentTenantId();
+      const currentMoradores = this.moradores();
+      const novosMoradores: Morador[] = [];
+      let skipped = 0;
+
+      for (const c of contatos) {
+          const nome = c.Nome.trim().toUpperCase();
+          const bloco = c.Bloco.trim().toUpperCase();
+          const apto = c.Apartamento.trim().toUpperCase();
+
+          if (!nome || (!bloco && !apto)) {
+              skipped++;
+              continue;
+          }
+
+          const exists = currentMoradores.some(m => 
+              m.nome.toUpperCase() === nome && 
+              m.bloco.toUpperCase() === bloco && 
+              m.apto.toUpperCase() === apto
+          ) || novosMoradores.some(m => 
+              m.nome.toUpperCase() === nome && 
+              m.bloco.toUpperCase() === bloco && 
+              m.apto.toUpperCase() === apto
+          );
+
+          if (exists) {
+              skipped++;
+              continue;
+          }
+
+          novosMoradores.push({
+              id: crypto.randomUUID(),
+              nome: nome,
+              bloco: bloco,
+              apto: apto,
+              telefone: c.Celular,
+              condoId: tenant || undefined,
+              isPrincipal: c.Principal ? (c.Principal.toUpperCase() === 'SIM' || c.Principal.toUpperCase() === 'TRUE') : true
+          });
+      }
+
+      if (novosMoradores.length > 0) {
+          await this.saveMany('moradores', novosMoradores);
+          this.moradores.update(l => [...l, ...novosMoradores]);
+          this.notifyChange();
+      }
+      
+      if (skipped > 0) {
+          this.ui.show(`${skipped} registros ignorados (duplicados ou inválidos).`, 'INFO');
+      }
+
+      return novosMoradores.length;
   }
 
   async deleteMorador(id: string) {
@@ -570,21 +719,41 @@ export class DbService {
   // --- EXPORT / IMPORT ENGINE ---
 
   async exportData(): Promise<BackupData> {
-      return {
-          porteiros: await this.getAllFromStore('porteiros'),
-          moradores: await this.getAllFromStore('moradores'),
-          encomendas: await this.getAllFromStore('encomendas'),
-          // Logs e Inbox são opcionais no export para manter arquivo leve
-          logs: [], 
-          inbox: [],
-          config: this.appConfig(),
-          exportedAt: new Date().toISOString(),
-          appVersion: this.APP_VERSION_INTERNAL,
-          auxiliary: {
-              learned_carriers: this.carriers(),
-              learned_senders: this.senders()
-          }
-      };
+      if (!this.db) throw new Error('DB not initialized');
+      
+      return new Promise((resolve, reject) => {
+          const stores = ['porteiros', 'moradores', 'encomendas'];
+          const tx = this.db!.transaction(stores, 'readonly');
+          const result: Partial<BackupData> = {
+              logs: [],
+              inbox: [],
+              config: this.appConfig(),
+              exportedAt: new Date().toISOString(),
+              appVersion: this.APP_VERSION_INTERNAL,
+              auxiliary: {
+                  learned_carriers: this.carriers(),
+                  learned_senders: this.senders()
+              }
+          };
+
+          const promises = stores.map(storeName => {
+              return new Promise<void>((res, rej) => {
+                  const store = tx.objectStore(storeName);
+                  const req = store.getAll();
+                  req.onsuccess = () => {
+                      (result as Record<string, unknown>)[storeName] = req.result;
+                      res();
+                  };
+                  req.onerror = () => rej(req.error);
+              });
+          });
+
+          tx.oncomplete = () => resolve(result as BackupData);
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(new Error('Export transaction aborted'));
+
+          Promise.all(promises).catch(reject);
+      });
   }
 
   async exportDataJson(): Promise<string> {
@@ -607,52 +776,44 @@ export class DbService {
       const shouldAdoptData = currentTenant !== null;
 
       // --- PROTOCOLO ANTI-KIOSK (RESTORE SAFEGUARD) ---
-      // 1. Sanitiza o payload de entrada (previne contaminação se a lógica de merge mudar)
-      // REGRA DE OURO: O Backup NÃO pode ditar o modo de exibição. Forçamos sempre modo JANELA/RESPONSIVO.
       if (data.config) {
           data.config.kioskMode = false;
       }
       
-      // 2. Força saída física do modo tela cheia
       this.ui.exitFullscreen();
-      
-      // 3. Limpa flags de persistência
       localStorage.removeItem('simbiose_kiosk_active');
       localStorage.removeItem('kiosk');
 
-      // 1. PRESERVAR CONFIGURAÇÃO LOCAL ESTRUTURAL
-      // Regra de Ouro: Ignora config do backup para não sobrescrever Kiosk Mode ou Identidade Local
-      // O App sempre prevalece sobre o backup em questões de configuração.
       const preservedConfig = this.appConfig();
-      
-      // Garante que a config preservada também não tenha Kiosk
       preservedConfig.kioskMode = false;
 
-      // 2. LIMPAR TUDO (Para garantir integridade estrutural)
       await this.clearAllStores();
       
-      // 3. RESTAURAR APENAS DADOS DE PRODUÇÃO (USER REQUEST: SOMENTE DADOS UTEIS)
-      // Prioridade: Porteiros, Moradores, Encomendas
-      
-      for (const p of data.porteiros || []) {
-          if (shouldAdoptData) p.condoId = currentTenant;
-          await this.saveItem('porteiros', p);
-      }
-      for (const m of data.moradores || []) {
-          if (shouldAdoptData) m.condoId = currentTenant;
-          await this.saveItem('moradores', m);
-      }
-      for (const e of data.encomendas || []) {
-          if (shouldAdoptData) e.condoId = currentTenant;
-          await this.saveItem('encomendas', e);
+      // RESTAURAR DADOS EM LOTE
+      if (data.porteiros?.length) {
+          const porteiros = data.porteiros.map(p => {
+              if (shouldAdoptData) p.condoId = currentTenant;
+              return p;
+          });
+          await this.saveMany('porteiros', porteiros, false);
       }
       
-      // --- BLOCO DE EXCLUSÃO EXPLÍCITA ---
-      // Config, Logs e Inbox do Backup são IGNORADOS intencionalmente
-      // A estrutura do app prevalece.
+      if (data.moradores?.length) {
+          const moradores = data.moradores.map(m => {
+              if (shouldAdoptData) m.condoId = currentTenant;
+              return m;
+          });
+          await this.saveMany('moradores', moradores, false);
+      }
       
-      // 4. RE-APLICAR CONFIGURAÇÃO LOCAL (SEM KIOSK)
-      // Se o backup tiver nome de condomínio, usamos, mas nunca a flag kiosk
+      if (data.encomendas?.length) {
+          const encomendas = data.encomendas.map(e => {
+              if (shouldAdoptData) e.condoId = currentTenant;
+              return e;
+          });
+          await this.saveMany('encomendas', encomendas, false);
+      }
+      
       if (data.config && data.config.nomeCondominio) {
           preservedConfig.nomeCondominio = data.config.nomeCondominio;
       }
@@ -672,11 +833,10 @@ export class DbService {
       }
       
       await this.enforceVipImmunity();
-      await this.ensureSpecialUsers(); // Garante que VIPs voltem após restore
+      await this.ensureSpecialUsers(); 
       await this.reloadSessionData();
       
-      // Feedback visual para o user
-      console.log('[Restore] Configuração local preservada (Kiosk OFF). Dados vitais importados.');
+      console.log('[Restore] Configuração local preservada (Kiosk OFF). Dados vitais importados em lote.');
       return true;
   }
 
@@ -698,8 +858,8 @@ export class DbService {
 
   // --- NOVA LÓGICA: BACKUP AUTOMÁTICO SOBRESCRITO (PRESCRIÇÃO) ---
   
-  async saveManualBackupToVirtualFolder(isAuto = false) {
-      const data = await this.exportData();
+  async saveManualBackupToVirtualFolder(isAuto = false, preExportedData?: BackupData) {
+      const data = preExportedData || await this.exportData();
       if (this.db) {
           const key = isAuto ? this.AUTO_BACKUP_KEY : Date.now();
           const snapshot = { timestamp: key, data, type: isAuto ? 'AUTO' : 'MANUAL' };

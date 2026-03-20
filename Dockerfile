@@ -1,37 +1,29 @@
-# ============================================================
-# Estágio 1: Build Angular PWA
-# ============================================================
+# Estágio 1: Build da aplicação Angular
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Instala dependências com legacy-peer-deps para evitar conflitos
+# Instala dependências
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm install
 
-# Copia código-fonte e compila
+# Copia o código fonte e faz o build
 COPY . .
-RUN npm run build -- --configuration=production
+RUN npm run build
 
-# ============================================================
-# Estágio 2: Imagem de Produção leve
-# ============================================================
+# Estágio 2: Imagem de Produção
 FROM node:22-alpine
 WORKDIR /app
 
-# Apenas dependências de produção (sem Angular build tools)
+# Instala apenas dependências de produção
 COPY package*.json ./
-RUN npm install --omit=dev --legacy-peer-deps
+RUN npm install --omit=dev
 
-# Copia build do Angular e servidor
+# Copia o build do Angular e o servidor
 COPY --from=build /app/dist ./dist
 COPY server.js .
 
-# Cloud Run usa a variável PORT (padrão 8080)
-ENV PORT=8080
-EXPOSE 8080
+# Expõe a porta 3000
+EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:8080/ || exit 1
-
+# Inicia o servidor
 CMD ["node", "server.js"]

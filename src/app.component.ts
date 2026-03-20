@@ -450,8 +450,8 @@ export class AppComponent implements OnDestroy, OnInit {
       try {
           if (document.exitFullscreen) {
               document.exitFullscreen().catch(() => {});
-          } else if (typeof (document as any).webkitExitFullscreen === 'function') {
-              (document as any).webkitExitFullscreen();
+          } else if (typeof (document as unknown as { webkitExitFullscreen?: () => void }).webkitExitFullscreen === 'function') {
+              (document as unknown as { webkitExitFullscreen: () => void }).webkitExitFullscreen();
           }
       } catch { }
   }

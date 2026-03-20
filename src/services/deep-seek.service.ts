@@ -1,6 +1,6 @@
 
 import { Injectable, inject, signal } from '@angular/core';
-import { DbService, Encomenda, Porteiro, Morador, InboxMessage } from './db.service';
+import { DbService, Encomenda, Morador, InboxMessage } from './db.service';
 import { UiService } from './ui.service';
 import { OcrExtractionResult, SimbioseMemory } from './gemini.service';
 import { DataProtectionService } from './data-protection.service';
@@ -8,7 +8,7 @@ import { ExclusiveScannerService } from './exclusive-scanner.service';
 import { debounceTime } from 'rxjs/operators';
 import { SimbioseWhatsappService } from './core/simbiose-whatsapp.service';
 import { AuthService } from './auth.service';
-import { QuantumNetService, NodeTelemetry } from './core/quantum-net.service';
+import { QuantumNetService } from './core/quantum-net.service';
 
 export interface DeepSeekSuggestion {
   id: string;
@@ -120,7 +120,7 @@ export class DeepSeekService {
   }
 
   private loadGlobalUsage() { const stored = localStorage.getItem(this.GLOBAL_USAGE_KEY); if (stored) this.globalLabelUsage.set(parseInt(stored, 10)); }
-  public consumirEtiqueta(userId: string) { const currentGlobal = this.globalLabelUsage(); if (currentGlobal < this.GLOBAL_POOL_LIMIT) { const next = currentGlobal + 1; this.globalLabelUsage.set(next); localStorage.setItem(this.GLOBAL_USAGE_KEY, next.toString()); } this.executarBackupTatico(true); }
+  public consumirEtiqueta() { const currentGlobal = this.globalLabelUsage(); if (currentGlobal < this.GLOBAL_POOL_LIMIT) { const next = currentGlobal + 1; this.globalLabelUsage.set(next); localStorage.setItem(this.GLOBAL_USAGE_KEY, next.toString()); } this.executarBackupTatico(true); }
   private checkShift() { const hour = new Date().getHours(); const isNight = hour >= 19 || hour < 6; if (this.isNightShift() !== isNight) { this.isNightShift.set(isNight); } }
 
   // --- ENGINE DEEPSEEK (RELATÓRIOS) ---
@@ -185,7 +185,7 @@ export class DeepSeekService {
 
   private iniciarVigilanciaDeDados() {
       // Prescreve a cada ação (Auto-save com debounce de 2 segundos)
-      let backupTimeout: any;
+      let backupTimeout: ReturnType<typeof setTimeout> | undefined;
       this.db.onDataChange.subscribe(() => {
           clearTimeout(backupTimeout);
           backupTimeout = setTimeout(() => {
@@ -230,13 +230,18 @@ export class DeepSeekService {
       await this.executarBackupTatico(true);
   }
 
+  private isBackupInProgress = false;
+
   public async executarBackupTatico(isAuto: boolean = false): Promise<boolean> {
+      if (this.isBackupInProgress) return false;
+      this.isBackupInProgress = true;
+      
       try {
           const data = await this.db.exportData();
           if (this.protection.isVaultActive()) {
               await this.protection.performSmartBackup(data);
           } else {
-              await this.db.saveManualBackupToVirtualFolder(isAuto);
+              await this.db.saveManualBackupToVirtualFolder(isAuto, data);
           }
           this.dataStatus.set('SECURE');
           return true;
@@ -244,6 +249,8 @@ export class DeepSeekService {
           console.error('[DeepSeek] Falha backup:', e);
           this.dataStatus.set('AT_RISK');
           return false;
+      } finally {
+          this.isBackupInProgress = false;
       }
   }
 
@@ -332,7 +339,7 @@ export class DeepSeekService {
   public async gerarAuditoriaGeral(force: boolean = false): Promise<DeepSeekReport> {
       // Se já estiver analisando, retorna o atual ou espera
       if (this.isAnalyzing() && !force) {
-          return this.relatorioAtual() || {} as any;
+          return this.relatorioAtual() || {} as DeepSeekReport;
       }
       
       this.isAnalyzing.set(true);
@@ -556,8 +563,8 @@ export class DeepSeekService {
               localizacao: '', // Tesseract raramente pega isso bem sem regex pesado
               condicaoVisual: 'Intacta' // Default seguro
           };
-      } catch (e) {
-          return { destinatario: '', transportadora: '', confianca: 0 } as any;
+      } catch {
+          return { destinatario: '', transportadora: '', confianca: 0 } as OcrExtractionResult;
       }
   }
 

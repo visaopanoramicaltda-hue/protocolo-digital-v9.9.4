@@ -1,10 +1,10 @@
 
-import { Injectable, signal, OnDestroy } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 
 @Injectable({
   providedIn: 'root'
 })
-export class SingleSessionService implements OnDestroy {
+export class SingleSessionService {
   
   // Sinaliza se esta aba deve ser bloqueada (Sempre falso agora - Múltiplas abas permitidas)
   isSessionBlocked = signal(false);
@@ -20,6 +20,4 @@ export class SingleSessionService implements OnDestroy {
   public takeOverSession() {
     this.isSessionBlocked.set(false);
   }
-
-  ngOnDestroy() {}
 }

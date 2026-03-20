@@ -223,7 +223,7 @@ export class PdfService {
                 try {
                     const dims = await this.getImageDimensions(item.fotoBase64);
                     this.drawImageFit(doc, item.fotoBase64, dims, currentX, y, cellWidth, cellHeight - 10);
-                } catch(e) {}
+                } catch {}
             }
 
             // Legenda
@@ -433,7 +433,7 @@ export class PdfService {
       
       try {
         doc.addImage(`data:image/jpeg;base64,${cleanData}`, 'JPEG', dx, dy, dw, dh);
-      } catch(e) {}
+      } catch {}
   }
 
   // --- MÉTODOS PÚBLICOS ---
@@ -537,7 +537,7 @@ export class PdfService {
 
 
   
-  public async generateDailyOperationalReport(stats: any, dateStr: string): Promise<{ blob: Blob, url: string, hash: string }> {
+  public async generateDailyOperationalReport(stats: Record<string, unknown>, dateStr: string): Promise<{ blob: Blob, url: string, hash: string }> {
     const textoResponsabilidade = `Este documento certifica o fechamento operacional diário referente ao dia ${dateStr}. Os dados abaixo refletem as movimentações registradas no sistema Simbiose até o momento da emissão deste relatório.`;
 
     const colEsq = [
@@ -563,12 +563,12 @@ export class PdfService {
         undefined
     );
   }
-  public async generateInvoice(plano: string, valor: string, cliente: string, cpf: string, condominio: string, nsu: string): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
-  public async generateBatchEntryReceipt(items: Encomenda[], porteiro: Porteiro, courierName: string, signatureBase64: string): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
+  public async generateInvoice(): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
+  public async generateBatchEntryReceipt(): Promise<{ blob: Blob, url: string, hash: string }> { return { blob: new Blob(), url: '', hash: '' }; }
   private async criarPDFListaModerno(
       titulo: string,
       colunas: { header: string, dataKey: string, width: number }[],
-      dados: any[],
+      dados: Record<string, unknown>[],
       user: Porteiro,
       orientation: 'portrait' | 'landscape' = 'portrait'
   ): Promise<{ blob: Blob, url: string, hash: string }> {

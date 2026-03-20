@@ -297,114 +297,114 @@ export class AuthService {
   }
 
   async completeLogin(user: Porteiro, overridePlan?: string) {
-      // PRIORIDADE 1: condoId da configuração global do sistema (mais estável)
-      const globalCondoId = this.db.appConfig().condoId;
-      
-      // PRIORIDADE 2: condoId do próprio usuário
-      let tenantId = user.condoId || globalCondoId;
-
-      if (!user.isDev && !tenantId) {
-          // Tenta encontrar o condoId de um administrador já configurado
-          const admin = this.db.porteiros().find(p => p.isAdmin && p.condoId);
-          tenantId = admin?.condoId || crypto.randomUUID();
+      try {
+          // PRIORIDADE 1: condoId da configuração global do sistema (mais estável)
+          const globalCondoId = this.db.appConfig().condoId;
           
-          // Se geramos um novo ID, ancoramos no primeiro admin para que outros herdem
-          if (!admin?.condoId) {
-              const firstAdmin = this.db.porteiros().find(p => p.isAdmin);
-              if (firstAdmin) {
-                  firstAdmin.condoId = tenantId;
-                  await this.db.saveItem('porteiros', firstAdmin);
+          // PRIORIDADE 2: condoId do próprio usuário
+          let tenantId = user.condoId || globalCondoId;
+
+          if (!user.isDev && !tenantId) {
+              // Tenta encontrar o condoId de um administrador já configurado
+              const admin = this.db.porteiros().find(p => p.isAdmin && p.condoId);
+              tenantId = admin?.condoId || crypto.randomUUID();
+              
+              // Se geramos um novo ID, ancoramos no primeiro admin para que outros herdem
+              if (!admin?.condoId) {
+                  const firstAdmin = this.db.porteiros().find(p => p.isAdmin);
+                  if (firstAdmin) {
+                      firstAdmin.condoId = tenantId;
+                      await this.db.saveItem('porteiros', firstAdmin);
+                  }
               }
           }
-      }
 
-      // Se o usuário não tinha condoId ou tinha um diferente do global, atualizamos
-      if (globalCondoId && user.condoId !== globalCondoId && !user.isDev) {
-          tenantId = globalCondoId;
-      }
+          // Se o usuário não tinha condoId ou tinha um diferente do global, atualizamos
+          if (globalCondoId && user.condoId !== globalCondoId && !user.isDev) {
+              tenantId = globalCondoId;
+          }
 
-      user.condoId = tenantId || undefined;
-      
-      // SALVA O USUÁRIO DE VOLTA NO BANCO PARA PERSISTIR O CONDO_ID
-      await this.db.saveItem('porteiros', user);
-      
-      this.db.currentTenantId.set(tenantId || null);
-      await this.db.reloadSessionData();
+          user.condoId = tenantId || undefined;
+          
+          // SALVA O USUÁRIO DE VOLTA NO BANCO PARA PERSISTIR O CONDO_ID
+          await this.db.saveItem('porteiros', user);
+          
+          this.db.currentTenantId.set(tenantId || null);
+          await this.db.reloadSessionData();
 
-      this.currentUser.set(user);
-      this.isDevMode.set(!!user.isDev);
-      
-      const sessionData = {
-          userId: user.id,
-          startTime: Date.now(),
-          signature: this.generateSessionSignature(user.id)
-      };
-      
-      localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionData));
-      
-      this.startShiftTimer(sessionData.startTime);
-      
-      this.db.logAction('LOGIN', `Acesso autorizado`, user.id, user.nome);
-      this.ui.requestPushPermission();
-      
-      // --- LÓGICA DE HERANÇA DE PLANO ---
-      let currentPlan = 'START';
-      let isFirstLogin = false;
-      
-      if (user.id === 'guest_admin') {
-          currentPlan = 'START';
-          // Clean Guest State
-          localStorage.removeItem(`simbiose_guide_seen_${user.id}`);
-          localStorage.removeItem('simbiose_pending_onboarding');
-          localStorage.removeItem('simbiose_pending_plan');
-          sessionStorage.removeItem('onboarding_just_completed');
-      } else {
-          // PARA USUÁRIOS REAIS: HERDA DA CONFIGURAÇÃO DO DB (Definida pelo Admin)
-          const dbConfig = this.db.appConfig();
-          if (dbConfig.activePlan && dbConfig.activePlan !== 'PENDENTE') {
-              currentPlan = dbConfig.activePlan;
+          this.currentUser.set(user);
+          this.isDevMode.set(!!user.isDev);
+          
+          const sessionData = {
+              userId: user.id,
+              startTime: Date.now(),
+              signature: this.generateSessionSignature(user.id)
+          };
+          
+          localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionData));
+          
+          this.startShiftTimer(sessionData.startTime);
+          
+          this.db.logAction('LOGIN', `Acesso autorizado`, user.id, user.nome);
+          this.ui.requestPushPermission();
+          
+          // --- LÓGICA DE HERANÇA DE PLANO ---
+          let currentPlan = 'START';
+          
+          if (user.id === 'guest_admin') {
+              currentPlan = 'START';
+              // Clean Guest State
+              localStorage.removeItem(`simbiose_guide_seen_${user.id}`);
+              localStorage.removeItem('simbiose_pending_onboarding');
+              localStorage.removeItem('simbiose_pending_plan');
+              sessionStorage.removeItem('onboarding_just_completed');
           } else {
-              isFirstLogin = true; // First login detected
-              currentPlan = overridePlan || 'START';
+              // PARA USUÁRIOS REAIS: HERDA DA CONFIGURAÇÃO DO DB (Definida pelo Admin)
+              const dbConfig = this.db.appConfig();
+              if (dbConfig.activePlan && dbConfig.activePlan !== 'PENDENTE') {
+                  currentPlan = dbConfig.activePlan;
+              } else {
+                  currentPlan = overridePlan || 'START';
+              }
           }
-      }
-      
-      // VIP Logic Override
-      if (user.id === 'luis_resolve_vip' || user.id === 'rodrigo_simbiose_vip') {
-          currentPlan = 'PRO_INFINITY';
-          const cfg = this.db.appConfig();
-          this.db.saveAppConfig({ 
-              ...cfg, 
-              activePlan: currentPlan,
-              nomeCondominio: user.id === 'luis_resolve_vip' ? 'Solve Prestadora' : 'Zelare Prestadora'
-          });
-      }
-      
-      // Persiste Plano na Configuração Global (Apenas Admin/Real)
-      // Garante que o plano "cole" na instalação
-      if (user.id !== 'guest_admin') { 
-          const cfg = this.db.appConfig();
-          // Se o plano atual for melhor que o salvo (ex: upgrade no login), atualiza
-          if (currentPlan !== cfg.activePlan) {
-              this.db.saveAppConfig({ ...cfg, activePlan: currentPlan });
+          
+          // VIP Logic Override
+          if (user.id === 'luis_resolve_vip' || user.id === 'rodrigo_simbiose_vip') {
+              currentPlan = 'PRO_INFINITY';
+              const cfg = this.db.appConfig();
+              this.db.saveAppConfig({ 
+                  ...cfg, 
+                  activePlan: currentPlan,
+                  nomeCondominio: user.id === 'luis_resolve_vip' ? 'Solve Prestadora' : 'Zelare Prestadora'
+              });
           }
+          
+          // Persiste Plano na Configuração Global (Apenas Admin/Real)
+          // Garante que o plano "cole" na instalação
+          if (user.id !== 'guest_admin') { 
+              const cfg = this.db.appConfig();
+              // Se o plano atual for melhor que o salvo (ex: upgrade no login), atualiza
+              if (currentPlan !== cfg.activePlan) {
+                  this.db.saveAppConfig({ ...cfg, activePlan: currentPlan });
+              }
+          }
+          
+          this.activePlan.set(currentPlan);
+
+          // --- REDIRECIONAMENTO (INTERNAL LOGIC TO AVOID CIRCULAR DEP) ---
+          let route = ['/dashboard'];
+          let queryParams = {};
+
+          if (!this.hasActiveFeatureAccess()) {
+              route = ['/admin'];
+              queryParams = { tab: 'quantum' };
+          }
+
+          this.router.navigate(route, { queryParams });
+      } catch (e) {
+          console.error('Error during completeLogin:', e);
+          this.ui.show('Erro ao completar o login.', 'ERROR');
       }
-      
-      this.activePlan.set(currentPlan);
-
-      // --- REDIRECIONAMENTO (INTERNAL LOGIC TO AVOID CIRCULAR DEP) ---
-      let route = ['/dashboard'];
-      let queryParams = {};
-
-      if (isFirstLogin) {
-          route = ['/admin'];
-          queryParams = { tab: 'quantum' };
-      } else if (!this.hasActiveFeatureAccess()) {
-          route = ['/admin'];
-          queryParams = { tab: 'quantum' };
-      }
-
-      this.router.navigate(route, { queryParams });
   }
 
   logout() {
@@ -497,10 +497,7 @@ export class AuthService {
                           let route = ['/dashboard'];
                           let queryParams = {};
 
-                          if (user.isDev || user.isAdmin) {
-                              route = ['/admin'];
-                              queryParams = { tab: 'quantum' };
-                          } else if (!this.hasActiveFeatureAccess()) {
+                          if (!this.hasActiveFeatureAccess()) {
                               route = ['/admin'];
                               queryParams = { tab: 'quantum' };
                           }
@@ -575,8 +572,8 @@ export class AuthService {
 
           // 2. Create credential
           const credential = await navigator.credentials.create({
-              publicKey: this.preparePublicKeyCredentialCreationOptions(options)
-          } as CredentialCreationOptions) as PublicKeyCredential;
+              publicKey: this.preparePublicKeyCredentialCreationOptions(options) as unknown as PublicKeyCredentialCreationOptions
+          }) as PublicKeyCredential;
 
           // 3. Verify registration on backend
           const verifyRes = await fetch('/api/auth/verify-registration', {
@@ -593,14 +590,14 @@ export class AuthService {
               return true;
           }
           throw new Error('Falha na verificação do cadastro.');
-      } catch (e: any) {
+      } catch (e: unknown) {
           console.error('Fingerprint registration failed:', e);
           this.ui.show('Falha ao cadastrar digital.', 'ERROR');
           return false;
       }
   }
 
-  async loginWithFingerprint(): Promise<{ success: boolean, user?: any, message?: string }> {
+  async loginWithFingerprint(): Promise<{ success: boolean, user?: Porteiro, message?: string }> {
       try {
           const user = this.currentUser();
           if (!user) return { success: false, message: 'Usuário não logado.' };
@@ -615,8 +612,8 @@ export class AuthService {
 
           // 2. Get assertion
           const assertion = await navigator.credentials.get({
-              publicKey: this.preparePublicKeyCredentialRequestOptions(options)
-          } as any) as PublicKeyCredential;
+              publicKey: this.preparePublicKeyCredentialRequestOptions(options) as unknown as PublicKeyCredentialRequestOptions
+          }) as PublicKeyCredential;
 
           // 3. Verify assertion on backend
           const verifyRes = await fetch('/api/auth/verify-authentication', {
@@ -628,10 +625,10 @@ export class AuthService {
               
           if (verification.verified) {
               this.ui.show('Login com digital realizado!', 'SUCCESS');
-              return { success: true, user };
+              return { success: true, user: user as Porteiro };
           }
           return { success: false, message: 'Falha na autenticação biométrica.' };
-      } catch (e: any) {
+      } catch (e: unknown) {
           console.error('Fingerprint login failed:', e);
           this.ui.show('Falha no login com digital.', 'ERROR');
           return { success: false, message: 'Falha no login com digital.' };
@@ -639,24 +636,26 @@ export class AuthService {
   }
 
   // Helper methods to prepare options (convert base64 to Uint8Array)
-  private preparePublicKeyCredentialCreationOptions(options: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private preparePublicKeyCredentialCreationOptions(options: Record<string, unknown>) {
       return {
           ...options,
-          challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
+          challenge: Uint8Array.from(atob(options['challenge'] as string), c => c.charCodeAt(0)),
           user: {
-              ...options.user,
-              id: Uint8Array.from(atob(options.user.id), c => c.charCodeAt(0)),
+              ...(options['user'] as Record<string, unknown>),
+              id: Uint8Array.from(atob((options['user'] as Record<string, unknown>)['id'] as string), c => c.charCodeAt(0)),
           }
       };
   }
 
-  private preparePublicKeyCredentialRequestOptions(options: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private preparePublicKeyCredentialRequestOptions(options: Record<string, unknown>) {
       return {
           ...options,
-          challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
-          allowCredentials: options.allowCredentials.map((cred: any) => ({
+          challenge: Uint8Array.from(atob(options['challenge'] as string), c => c.charCodeAt(0)),
+          allowCredentials: (options['allowCredentials'] as Record<string, unknown>[]).map((cred: Record<string, unknown>) => ({
               ...cred,
-              id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+              id: Uint8Array.from(atob(cred['id'] as string), c => c.charCodeAt(0)),
           }))
       };
   }

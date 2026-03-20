@@ -1,21 +1,18 @@
+
 {
   "$schema": "./node_modules/@angular/service-worker/config/schema.json",
   "index": "/index.html",
   "assetGroups": [
     {
-      "name": "app-shell",
+      "name": "app",
       "installMode": "prefetch",
-      "updateMode": "prefetch",
       "resources": {
         "files": [
           "/index.html",
           "/manifest.webmanifest",
           "/icon.svg",
-          "/icon-192x192.png",
-          "/icon-512x512.png",
           "/*.css",
-          "/*.js",
-          "!/ngsw.json"
+          "/*.js"
         ]
       }
     },
@@ -26,41 +23,61 @@
       "resources": {
         "files": [
           "/assets/**",
-          "/**/*.{svg,cur,jpg,jpeg,png,apng,webp,avif,gif,otf,ttf,woff,woff2}"
+          "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+        ]
+      }
+    },
+    {
+      "name": "external-assets",
+      "installMode": "prefetch", 
+      "updateMode": "prefetch",
+      "resources": {
+        "urls": [
+          "https://cdn.tailwindcss.com/**",
+          "https://fonts.googleapis.com/**",
+          "https://fonts.gstatic.com/**",
+          "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"
+        ]
+      }
+    },
+    {
+      "name": "lazy-assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "urls": [
+          "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/**",
+          "https://tessdata.projectnaptha.com/**",
+          "https://www.transparenttextures.com/patterns/**"
         ]
       }
     }
   ],
   "dataGroups": [
     {
-      "name": "api-performance",
-      "urls": ["/api/**"],
+      "name": "api-critical",
+      "urls": [
+        "https://firestore.googleapis.com/**",
+        "https://identitytoolkit.googleapis.com/**"
+      ],
       "cacheConfig": {
-        "strategy": "performance",
         "maxSize": 100,
-        "maxAge": "1h",
-        "timeout": "10s"
+        "maxAge": "1d",
+        "timeout": "5s",
+        "strategy": "freshness"
       }
     },
     {
-      "name": "always-online-routes",
+      "name": "api-offline-fallback",
       "urls": [
-        "/painel-de-encomendas/**",
-        "/quantum-net/**"
+        "https://*.googleapis.com/**"
       ],
       "cacheConfig": {
-        "strategy": "freshness",
         "maxSize": 50,
-        "maxAge": "1m",
-        "timeout": "5s"
+        "maxAge": "7d",
+        "timeout": "3s",
+        "strategy": "performance"
       }
     }
-  ],
-  "navigationRequestStrategy": "freshness",
-  "navigationUrls": [
-    "/**",
-    "!/**/*.*",
-    "!/**/*__*",
-    "!/**/*__*/**"
   ]
 }

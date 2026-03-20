@@ -5,22 +5,22 @@ import { PdfService } from '../pdf.service';
 export class SimbiosePdfService {
   private pdfService = inject(PdfService);
 
-  async gerarComprovante(protocolo: any): Promise<Blob> {
+  async gerarComprovante(protocolo: Record<string, unknown>): Promise<Blob> {
     const colEsq = [
-        { label: 'Tipo', value: protocolo.tipo || '' },
-        { label: 'Destinatário', value: protocolo.destinatario || '' },
-        { label: 'Condição', value: protocolo.condicao || '' }
+        { label: 'Tipo', value: String(protocolo['tipo'] || '') },
+        { label: 'Destinatário', value: String(protocolo['destinatario'] || '') },
+        { label: 'Condição', value: String(protocolo['condicao'] || '') }
     ];
 
     const colDir = [
-        { label: 'Bloco', value: protocolo.bloco || '' },
-        { label: 'Unidade', value: protocolo.unidade || '' },
+        { label: 'Bloco', value: String(protocolo['bloco'] || '') },
+        { label: 'Unidade', value: String(protocolo['unidade'] || '') },
         { label: 'Data', value: new Date().toLocaleString() }
     ];
 
     const result = await this.pdfService.criarPDFModerno(
         'PROTOCOLO INTELIGENTE',
-        protocolo.id || 'N/A',
+        (protocolo['id'] as string) || 'N/A',
         'Este documento é um comprovante gerado pelo sistema Simbiose.',
         colEsq,
         colDir,

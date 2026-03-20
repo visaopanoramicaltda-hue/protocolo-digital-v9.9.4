@@ -10,10 +10,15 @@
   <!-- 3. GLOSS: GLASS REFLECTION OVERLAY -->
   <div class="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none z-0"></div>
 
+  <!-- Mobile Sidebar Backdrop -->
+  @if (!isDesktop() && isSidebarOpen()) {
+    <div class="fixed inset-0 bg-black/60 z-30 backdrop-blur-sm transition-opacity" (click)="toggleSidebar()"></div>
+  }
+
   <!-- SIDEBAR: SOLID DARK EXECUTIVE -->
-  <aside class="sidebar bg-[#080808] border-r border-white/10 shadow-[10px_0_30px_rgba(0,0,0,0.5)] relative z-30 h-full w-64 shrink-0 flex flex-col transition-transform duration-300 safe-area-pt safe-area-pb safe-area-pl"
-         [class.hidden]="!isSidebarOpen() && !isDesktop()" 
-         [class.flex]="isSidebarOpen() || isDesktop()">
+  <aside class="sidebar bg-[#080808] border-r border-white/10 shadow-[10px_0_30px_rgba(0,0,0,0.5)] absolute md:relative z-40 h-full w-64 shrink-0 flex flex-col transition-transform duration-300 safe-area-pt safe-area-pb safe-area-pl"
+         [class.-translate-x-full]="!isSidebarOpen() && !isDesktop()" 
+         [class.translate-x-0]="isSidebarOpen() || isDesktop()">
     
     <!-- Header Logo Area -->
     <div class="h-28 flex flex-col items-center justify-center border-b border-white/10 relative overflow-hidden group shrink-0 bg-[#0a0a0a]">
@@ -473,25 +478,27 @@
 <!-- PORTEIROS -->
 <ng-template #porteiroTab>
     <div class="space-y-6 animate-fade-in">
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
             <div>
                 <h3 class="text-lg font-black text-white uppercase tracking-widest flex items-center gap-2">
                     <span class="text-blue-500">👮</span> Equipe
                 </h3>
                 <p class="text-xs text-gray-500 mt-1">Gerencie o acesso dos porteiros e operadores.</p>
             </div>
-            <button (click)="openPorteiroModal('ADD')" class="px-4 py-2 bg-blue-600 text-white font-black uppercase text-[9px] tracking-widest rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20 flex items-center gap-2">
-                <span>+</span> Novo Porteiro
-            </button>
-            <button (click)="auth.registerFingerprint()" class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a1a] to-black border border-white/5 flex items-center justify-center shadow-[0_4px_15px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] hover:from-black hover:to-[#0a0a0a] transition-all group active:scale-95" title="Cadastrar Digital">
-                <svg class="w-6 h-6 text-[#ea580c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 2px rgba(234,88,12,0.8)) drop-shadow(0 0 5px rgba(234,88,12,0.6));">
-                    <path d="M12 2a10 10 0 0 0-10 10c0 5.52 4.48 10 10 10s10-4.48 10-10A10 10 0 0 0 12 2z"/>
-                    <path d="M12 6a6 6 0 0 0-6 6c0 3.31 2.69 6 6 6s6-2.69 6-6a6 6 0 0 0-6-6z"/>
-                    <path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2s2-.9 2-2a2 2 0 0 0-2-2z"/>
-                    <path d="M8 10c0 2.21 1.79 4 4 4s4-1.79 4-4"/>
-                    <path d="M6 14c0 3.31 2.69 6 6 6s6-2.69 6-6"/>
-                </svg>
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button (click)="openPorteiroModal('ADD')" class="px-4 py-2 bg-blue-600 text-white font-black uppercase text-[9px] tracking-widest rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                    <span>+</span> Novo Porteiro
+                </button>
+                <button (click)="auth.registerFingerprint()" class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a1a] to-black border border-white/5 flex items-center justify-center shadow-[0_4px_15px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] hover:from-black hover:to-[#0a0a0a] transition-all group active:scale-95" title="Cadastrar Digital">
+                    <svg class="w-6 h-6 text-[#ea580c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 2px rgba(234,88,12,0.8)) drop-shadow(0 0 5px rgba(234,88,12,0.6));">
+                        <path d="M12 2a10 10 0 0 0-10 10c0 5.52 4.48 10 10 10s10-4.48 10-10A10 10 0 0 0 12 2z"/>
+                        <path d="M12 6a6 6 0 0 0-6 6c0 3.31 2.69 6 6 6s6-2.69 6-6a6 6 0 0 0-6-6z"/>
+                        <path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2s2-.9 2-2a2 2 0 0 0-2-2z"/>
+                        <path d="M8 10c0 2.21 1.79 4 4 4s4-1.79 4-4"/>
+                        <path d="M6 14c0 3.31 2.69 6 6 6s6-2.69 6-6"/>
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <!-- SEARCH -->
@@ -559,14 +566,14 @@
 <!-- MORADORES -->
 <ng-template #moradorTab>
     <div class="space-y-6 animate-fade-in">
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
             <div>
                 <h3 class="text-lg font-black text-white uppercase tracking-widest flex items-center gap-2">
                     <span class="text-blue-400">🏢</span> Moradores
                 </h3>
                 <p class="text-xs text-gray-500 mt-1">{{ db.moradores().length }} unidades cadastradas.</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap justify-end gap-2">
                 @if (auth.currentUser()?.isAdmin) {
                     <button (click)="deleteAllMoradores()" class="px-2 py-2 bg-red-900/30 text-red-500 font-bold uppercase text-[7px] tracking-widest rounded hover:bg-red-900 hover:text-white transition-colors border border-red-900/50" title="Excluir Todos os Moradores">
                         🗑️ Todos
@@ -575,10 +582,13 @@
                 <button (click)="exportCsv()" class="px-2 py-2 bg-[#1a1a1a] text-gray-300 font-bold uppercase text-[7px] tracking-widest rounded hover:bg-white hover:text-black transition-colors border border-gray-700">
                     Exp.
                 </button>
-                <button (click)="fileInput.click()" class="px-2 py-2 bg-[#2a2a2a] text-white font-bold uppercase text-[7px] tracking-widest rounded hover:bg-white hover:text-black transition-colors">
+                <button (click)="moradorCsvInput.click()" class="px-2 py-2 bg-[#2a2a2a] text-white font-bold uppercase text-[7px] tracking-widest rounded hover:bg-white hover:text-black transition-colors">
                     Imp.
                 </button>
-                <input #fileInput type="file" (change)="handleCsvImport($event)" accept=".csv" class="hidden">
+                <button (click)="openImportMoradoresModal()" class="px-2 py-2 bg-emerald-600 text-white font-bold uppercase text-[7px] tracking-widest rounded hover:bg-white hover:text-black transition-colors border border-emerald-500" title="Importar Contatos da Agenda">
+                    📱 Agenda
+                </button>
+                <input #moradorCsvInput type="file" (change)="handleCsvImport($event)" accept=".csv,.txt" class="hidden">
                 
                 <button (click)="openMoradorModal('ADD')" class="px-4 py-2 bg-blue-500 text-white font-black uppercase text-[7px] tracking-widest rounded-lg hover:bg-blue-400 transition-colors shadow-lg shadow-blue-900/40 border-2 border-white/20">
                     + Novo
@@ -595,25 +605,32 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             @for(group of moradoresGroups(); track group.label) {
-                <div class="bg-[#050505] border border-white/10 rounded-xl overflow-hidden">
-                    <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                <div class="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden shadow-lg">
+                    <div class="bg-black/40 px-4 py-3 border-b border-white/5 flex justify-between items-center">
                         <span class="text-xs font-black text-[#E86C26] uppercase tracking-wider">{{ group.label }}</span>
-                        <span class="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400">{{ group.items.length }}</span>
+                        <span class="text-[9px] bg-white/10 px-2 py-0.5 rounded-full text-gray-400 font-bold">{{ group.items.length }}</span>
                     </div>
-                    <div class="space-y-2 p-2">
+                    <div class="flex flex-col divide-y divide-white/5">
                         @for(m of group.items; track m.id) {
-                            <div class="p-3 bg-black border-[0.1px] border-[#FF6321] rounded-lg hover:bg-white/5 transition-colors flex justify-between items-center group">
+                            <div class="p-4 hover:bg-white/5 transition-colors flex justify-between items-center group"
+                                 [class.bg-white/[0.02]]="m.isPrincipal">
                                 <div>
-                                    <p class="text-sm font-bold text-white uppercase flex items-center gap-2">
+                                    <p class="text-sm uppercase flex items-center gap-2"
+                                       [class.font-black]="m.isPrincipal"
+                                       [class.text-white]="m.isPrincipal"
+                                       [class.font-bold]="!m.isPrincipal"
+                                       [class.text-gray-300]="!m.isPrincipal">
                                         {{ m.nome }}
-                                        @if(m.isPrincipal) { <span class="text-[8px] text-yellow-500">★</span> }
+                                        @if(m.isPrincipal) { 
+                                            <span class="text-[9px] text-yellow-500">★</span>
+                                        }
                                     </p>
-                                    <p class="text-[10px] text-gray-600 font-mono">{{ m.telefone || 'Sem telefone' }}</p>
+                                    <p class="text-[10px] text-gray-500 font-mono mt-0.5">{{ m.telefone || 'Sem telefone' }}</p>
                                 </div>
-                                <div class="flex gap-2">
-                                    <button (click)="openMoradorModal('EDIT', m)" class="text-gray-400 hover:text-white">✎</button>
+                                <div class="flex gap-3 opacity-50 group-hover:opacity-100 transition-opacity">
+                                    <button (click)="openMoradorModal('EDIT', m)" class="text-gray-400 hover:text-white" title="Editar">✎</button>
                                     @if(auth.currentUser()?.isAdmin) {
-                                        <button (click)="initDeleteMorador(m.id)" class="text-red-500 hover:text-red-300">✕</button>
+                                        <button (click)="initDeleteMorador(m.id)" class="text-red-500 hover:text-red-400" title="Excluir">✕</button>
                                     }
                                 </div>
                             </div>
@@ -633,7 +650,7 @@
 <!-- TRANSPORTADORAS -->
 <ng-template #transportadoraTab>
     <div class="space-y-6 animate-fade-in">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
             <h3 class="text-lg font-black text-white uppercase tracking-widest flex items-center gap-2">
                 <span class="text-yellow-500">🚚</span> Transportadoras
             </h3>
@@ -914,6 +931,17 @@
             }
         </div>
 
+        <div class="border-t border-white/10 pt-8 space-y-4">
+            <h4 class="text-sm font-bold text-[#E86C26] uppercase">Manutenção de Encomendas</h4>
+            <p class="text-[10px] text-gray-500">Ferramenta exclusiva para Administradores e Desenvolvedores.</p>
+            <button (click)="baixaManualAntigas()" 
+                    [class.bg-red-600]="confirmBaixaManual"
+                    [class.text-white]="confirmBaixaManual"
+                    class="px-6 py-3 bg-red-600/20 text-red-500 font-bold uppercase text-xs rounded border border-red-500/50 hover:bg-red-600 hover:text-white transition-colors">
+                {{ confirmBaixaManual ? 'CONFIRMAR BAIXA MANUAL' : 'Dar Baixa Manual (> 20 dias pendentes)' }}
+            </button>
+        </div>
+
         <div class="flex pt-8">
             <button (click)="saveConfig()" class="w-full md:w-auto px-8 py-4 bg-[#E86C26] text-black font-black uppercase tracking-widest text-sm rounded hover:bg-white transition-colors shadow-lg shadow-[#E86C26]/20">
                 Salvar Alterações
@@ -962,7 +990,7 @@
             <div class="space-y-2">
                 <label class="text-[10px] font-bold text-gray-500 uppercase">Restaurar do Arquivo</label>
                 <div class="relative">
-                    <input #fileInput type="file" (change)="uploadAndRestoreManual($event)" class="absolute inset-0 opacity-0 cursor-pointer" accept=".json">
+                    <input #backupJsonInput type="file" (change)="uploadAndRestoreManual($event)" class="absolute inset-0 opacity-0 cursor-pointer" accept=".json">
                     <button class="w-full py-3 bg-white/5 border border-dashed border-white/30 text-gray-400 font-bold uppercase text-xs rounded hover:bg-white/10 transition-colors">
                         Selecionar Arquivo...
                     </button>
@@ -1241,6 +1269,32 @@
             <div class="flex gap-3 mt-8">
                 <button (click)="closeTrainingModal()" class="flex-1 py-3 border border-white/20 text-gray-300 font-bold uppercase text-xs rounded hover:bg-white/10 transition-colors">Cancelar</button>
                 <button (click)="addTrainingData()" class="flex-1 py-3 bg-[#E86C26] text-black font-black uppercase text-xs rounded hover:bg-white transition-colors shadow-lg">Ensinar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- MODAL: IMPORTAR MORADORES -->
+@if (showImportMoradoresModal()) {
+    <div class="fixed inset-0 z-[9000] bg-black/90 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+        <div class="bg-[#0a0a0a] border border-emerald-500 p-8 rounded-xl w-full max-w-2xl relative shadow-2xl">
+            <h3 class="text-xl font-black text-white uppercase mb-6 flex items-center gap-2">
+                <span class="text-emerald-500">📥</span> Importação em Massa
+            </h3>
+            
+            <p class="text-xs text-gray-400 mb-4">Cole abaixo os dados dos moradores (JSON ou texto delimitado por vírgula/ponto-e-vírgula/tabulação).</p>
+            <p class="text-[10px] text-emerald-500/70 mb-6 font-mono">Formato esperado: Nome; Bloco; Apartamento; Celular</p>
+
+            <div class="space-y-4">
+                <textarea [ngModel]="importMoradoresText()" (ngModelChange)="importMoradoresText.set($event)" 
+                          rows="12" 
+                          placeholder="Exemplo:&#10;João Silva; Bloco A; 101; 5511999999999&#10;Maria Oliveira; Bloco B; 202; 5511888888888"
+                          class="w-full bg-white/5 border border-white/10 p-4 text-white rounded-lg outline-none focus:border-emerald-500 font-mono text-sm resize-none"></textarea>
+            </div>
+
+            <div class="flex gap-3 mt-8">
+                <button (click)="closeImportMoradoresModal()" class="flex-1 py-3 border border-white/20 text-gray-300 font-bold uppercase text-xs rounded hover:bg-white/10 transition-colors">Cancelar</button>
+                <button (click)="processImportMoradores()" class="flex-1 py-3 bg-emerald-600 text-white font-black uppercase text-xs rounded hover:bg-emerald-500 transition-colors shadow-lg">Processar Importação</button>
             </div>
         </div>
     </div>

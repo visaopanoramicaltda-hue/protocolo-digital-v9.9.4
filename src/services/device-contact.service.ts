@@ -42,7 +42,7 @@ export class DeviceContactService {
       const props = ['name', 'tel'];
       const opts = { multiple: false };
       
-      // @ts-ignore - TypeScript pode não ter a definição da API experimental ainda
+      // @ts-expect-error - TypeScript pode não ter a definição da API experimental ainda
       const contacts = await navigator.contacts.select(props, opts);
 
       if (contacts && contacts.length > 0) {
@@ -63,11 +63,13 @@ export class DeviceContactService {
         
         return { name, tel };
       }
-    } catch (e: any) {
-      if (e.name === 'SecurityError' || (e.message && e.message.includes('top frame'))) {
+    } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = e as any;
+      if (err.name === 'SecurityError' || (err.message && err.message.includes('top frame'))) {
           this.ui.show('Erro de permissão: Abra o app fora do frame.', 'ERROR');
       } else {
-          console.error('[ContactService] Erro ou cancelamento:', e);
+          console.error('[ContactService] Erro ou cancelamento:', err);
       }
     }
     return null;
@@ -87,7 +89,7 @@ export class DeviceContactService {
               const list: DeviceContact[] = JSON.parse(cachedContacts);
               const match = list.find(c => c.name.toLowerCase().includes(name.toLowerCase()));
               if (match) return match.tel;
-          } catch(e) {}
+          } catch {}
       }
       
       // Como fallback, retorna null, o que acionará o fluxo de "Sugestão de Vínculo" na UI
