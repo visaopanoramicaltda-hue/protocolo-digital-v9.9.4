@@ -1,5 +1,5 @@
 {
-  "routes": [
-    { "src": "/(.*)", "dest": "/" }
-  ]
+  "framework": "angular",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/nome-do-app/browser"
 }
