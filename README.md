@@ -21,4 +21,4 @@ View your app in AI Studio: https://ai.studio/apps/aa583ef9-caa0-439e-9b69-941f2
 
 ## 🚀 Deploy Instantâneo
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SEU-USUARIO/SEU-REPOSITORIO)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/visaopanoramicaltda-hue//protocolo-digitql-v9.9.4)
