@@ -434,7 +434,7 @@ export class GeminiService {
                 
                 // Prefere o query param se existir e for longo, senão o path segment, senão a URL inteira
                 possibleTracking = queryParam || lastSegment || qr;
-            } catch (e) {
+            } catch {
                 // Não é URL, usa o QR code inteiro (ou tenta separar por = ou / se for uma string mal formatada)
                 if (qr.includes('http') && qr.includes('=')) {
                     possibleTracking = qr.split('=').pop() || '';
